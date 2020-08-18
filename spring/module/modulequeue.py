@@ -29,6 +29,7 @@ class ModuleQueue:
     """
 
     def __init__(self, modules : List[str]):
+        
         """
         Constructs the ModuleQueue object.
 
@@ -41,6 +42,7 @@ class ModuleQueue:
 
         self._required = ["candmaker", "frbid"]
         self._queue = []
+        self._idx = 0
 
         modules.extend(self._required)
 
@@ -51,25 +53,93 @@ class ModuleQueue:
             self._queue.sort(key=lambda val: val.id)
 
     def __iter__(self):
+        
+        """
 
+        Resets the index of the list.
+
+        If not done here, creating new iteration will start from where
+        the __next__() stopped the last time.
+
+        """
+
+        self._idx = 0
         return self
 
-
-    """
-
-    Get the module to be run.
-
-    """
     def __next__(self):
 
-        try:
+        """
 
-            x = 1
+        Get the next module in the module queue.
 
-        except:
+        As well as returning the current module to run the processing
+        on, passes the data from the output of the current module to
+        the input of the next module. The exception to this rule are
+        the first and the last modules
 
-            logger.error("Could not dispatch the module")
+            Returns:
 
+                : Module
+                    Current module to be run
+
+            Raises:
+        
+                StopIteration: raised when there are no modules to
+                    return. Required for the proper implementation of
+                    the __next__() method
+
+        """
+
+        if self._idx < len(self._queue):
+
+            if self._idx != 0:
+                self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
+
+            self._idx = self._idx + 1
+            return self._queue[self._idx - 1]
+
+        raise StopIteration
+
+    def __contains__(self, item : str) -> bool:
+
+        for module in self._queue:
+
+            if isinstance(module, getattr(cm, item.capitalize() + "Module")):
+                return True
+
+        return False
+
+    def __getitem__(self, idx : int) -> Module:
+
+        """
+
+        Return the module at specified index.
+
+        Returns:
+
+            : Module
+                Requested module
+            
+        Raises:
+
+            IndexError: raised when the index exceeds the length of the
+            module queue.
+
+        """
+
+        if idx < len(self._queue):
+            return self._queue[idx]
+
+        raise IndexError
+
+    def __len__(self) -> int:
+
+        """
+        Leturns the length of the underlying list
+
+        """
+
+        return len(self._queue)
 
     def add_module(self, module: Module) -> None:
 

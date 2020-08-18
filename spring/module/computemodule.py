@@ -1,5 +1,9 @@
 import logging
 
+from numpy import array, logical_not, newaxis
+from time import sleep
+from typing import Dict
+
 from module.module import Module
 
 logger = logging.getLogger(__name__)
@@ -24,9 +28,41 @@ class ComputeModule(Module):
     """
     def __init__(self):
 
+        self._data = array([])
+
         self.id = 0
         super().__init__()
 
+    def process(self, metadata : Dict) -> None:
+
+        """
+
+        Abstract method.
+
+        Does nothing
+
+        Parameters:
+
+            metadata : Dict
+                Relevant metadata for processing, i.e. DM to dedisperse
+                the data to, channel mask, etc. Depends on the module
+                that is currently processing the data
+
+        """
+
+        pass
+
+    def initialise(self, indata : array) -> None:
+        
+        self.set_input(indata)
+
+    def set_input(self, indata : array) -> None:
+
+        self._data = indata
+
+    def get_output(self) -> array:
+
+        return self._data
 
 class IqrmModule(ComputeModule):
 
@@ -34,8 +70,21 @@ class IqrmModule(ComputeModule):
 
         super().__init__()
         self.id = 10
-        logger.info("Hello from IQRM module %d" % (self.id))
+        logger.info("IQRM module initialised")
 
+
+    def process(self, metadata : Dict) -> None:
+
+        """"
+
+        Start the IQRM processing
+
+        """
+
+        logger.debug("IQRM module starting processing")
+        sleep(2)
+        logger.debug("IQRM module finished processing")
+        self._data = self._data + 1
 
 
 class MaskModule(ComputeModule):
@@ -44,8 +93,38 @@ class MaskModule(ComputeModule):
 
         super().__init__()
         self.id = 20
-        logger.info("Hello from mask module %d" % (self.id))
+        logger.info("Mask module initialised")
 
+
+    def process(self, metadata : Dict) -> None:
+
+        """"
+
+        Start the masking processing
+
+        Applies the user-defined mask to the data.
+        
+        Parameters:
+
+            metadata["mask"] : array
+                Mask with the length of the number of channels in the
+                data. Only values 0 and 1 are allowed. If not supplied,
+                none of the channels will be masked.
+
+            medatata["multiply"] : bool
+                If true, then the mask is multiplicative, i.e. the data
+                is multiplied with the values is the mask; if false, the
+                mask is logical, i.e. 0 means not masking and 1 means
+                masking. Defaults to True, i.e. multiplicative mask.
+
+        """
+
+        mask = metadata["mask"]
+        # Need to revert to a multiplicative mask anyway
+        if (metadata["multiply"] == False):
+            mask = logical_not(mask)
+
+        self._data = self._data * mask[:, newaxis] 
 
 class ThresholdModule(ComputeModule):
 
@@ -53,7 +132,7 @@ class ThresholdModule(ComputeModule):
 
         super().__init__()
         self.id = 30
-        logger.info("Hello from threshold module")
+        logger.info("Threshold module initialised")
 
 class ZerodmModule(ComputeModule):
 
@@ -61,7 +140,21 @@ class ZerodmModule(ComputeModule):
 
         super().__init__()
         self.id = 40
-        logger.info("Hello from zeroDM module %d" % (self.id))
+        logger.info("ZeroDM module initialised")
+        
+
+    def process(self, metadata : Dict) -> None:
+
+        """"
+
+        Start the zeroDM processing
+
+        """
+
+        logger.debug("ZeroDM module starting processing")
+        sleep(2)
+        logger.debug("ZeroDM module finished processing")
+        self._data = self._data + 1
 
 class CandmakerModule(ComputeModule):
 
@@ -69,8 +162,20 @@ class CandmakerModule(ComputeModule):
 
         super().__init__()
         self.id = 50
-        logger.info("Hello from candmaker module")
+        logger.info("Candmaker module initialised")
 
+    def process(self, metadata : Dict) -> None:
+
+        """"
+
+        Start the candmaker processing
+
+        """
+
+        logger.debug("Candmaker module starting processing")
+        sleep(2)
+        logger.debug("Candmaker module finished processing")
+        self._data = self._data + 1
 
 class FrbidModule(ComputeModule):
 
@@ -78,8 +183,20 @@ class FrbidModule(ComputeModule):
 
         super().__init__()
         self.id = 60
-        logger.info("Hello from FRBID module")
+        logger.info("FRBID module initialised")
 
+    def process(self, metadata : Dict) -> None:
+
+        """"
+
+        Start the FRBID processing
+
+        """
+
+        logger.debug("FRBID module starting processing")
+        sleep(2)
+        logger.debug("FRBID module finished processing")
+        self._data = self._data + 1
 
 class MultibeamModule(ComputeModule):
 
@@ -87,4 +204,4 @@ class MultibeamModule(ComputeModule):
 
         super().__init__()
         self.id = 70
-        logger.info("Hello from multibeam module")
+        logger.info("Multibeam module initialised")

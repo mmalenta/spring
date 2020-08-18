@@ -1,5 +1,6 @@
 import logging
 
+from numpy import array, ones, random
 from typing import Dict
 
 from module.modulequeue import ModuleQueue
@@ -35,6 +36,8 @@ class Pipeline:
 
         self._module_queue = ModuleQueue(config["modules"])
 
+        logger.debug("Create queue with %d modules" % (len(self._module_queue)))
+
     def run(self) -> None:
         """
         Start the processing.
@@ -44,6 +47,45 @@ class Pipeline:
         
         self._running = True
         self._paused = False
+
+        # Run this for every candidate file
+        self._module_queue[0].initialise(ones((4,4)))
+
+        metadata = {
+
+            "iqrm": {
+
+            },
+
+            "threshold": {
+
+            },
+
+            "zerodm": {
+
+            },
+
+            "mask": {
+                "multiply": True,
+                "mask": array([0, 1, 1, 0])
+            },
+
+            "candmaker": {
+
+            },
+
+            "frbid": {
+
+            },
+
+            "multibeam": {
+                
+            }
+        }
+
+        for module in self._module_queue:
+            module.process(metadata[(module.__class__.__name__[:-6]).lower()])
+            print(module.get_output())
 
     def stop(self) -> None:
         """
