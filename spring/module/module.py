@@ -1,5 +1,7 @@
 import logging
 
+from typing import Dict
+
 logger = logging.getLogger(__name__)
 
 class Module:
@@ -13,3 +15,22 @@ class Module:
     def __init__(self):
 
         dummy = 1
+
+    def process(self, metadata : Dict) -> None:
+
+        """
+
+        Abstract method.
+
+        Does nothing
+
+        Parameters:
+
+            metadata : Dict
+                Relevant metadata for processing, i.e. DM to dedisperse
+                the data to, channel mask, etc. Depends on the module
+                that is currently processing the data
+
+        """
+
+        pass
