@@ -1,7 +1,11 @@
 import argparse as ap
+import asyncio
 import logging
+import signal
 
-from pipeline.pipeline import Pipeline
+from functools import partial
+
+from sppipeline.pipeline import Pipeline
 
 logger = logging.getLogger()
 
@@ -45,8 +49,8 @@ def main():
                         # If used, require at least one extra module
                         nargs="+",
                         type=str,
-                        choices=["iqrm", "zerodm", "threshold", "mask", "multibeam",
-                                    "plot", "archive"])
+                        choices=["iqrm", "zerodm", "threshold", "mask",
+                                    "multibeam", "plot", "archive"])
 
     arguments = parser.parse_args()
 
@@ -66,7 +70,20 @@ def main():
     logger.addHandler(cl_handler)
 
     pipeline = Pipeline(configuration)
-    pipeline.run()
+
+    loop = asyncio.get_event_loop()
+    # Handle CTRL + C
+    loop.add_signal_handler(getattr(signal, 'SIGINT'),
+                                        partial(pipeline.stop, loop))    
+
+    loop.create_task(pipeline.run(loop))
+
+    try:
+        loop.run_forever()
+        logger.info("Pipeline finished processing")
+    finally:
+        loop.close()
+        logger.info("Processing closed successfully")
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,13 @@
+import asyncio
+import functools
 import logging
+import signal
 
 from numpy import array, ones, random
 from typing import Dict
 
-from module.modulequeue import ModuleQueue
-
+from spmodule.utilitymodule import WatchModule
+from spqueue.computequeue import ComputeQueue
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +34,66 @@ class Pipeline:
 
         """
         
+
         self._running = False
         self._paused = False
 
-        self._module_queue = ModuleQueue(config["modules"])
+        self._watch_module = WatchModule(config["base_directory"],
+                                            config["num_watchers"])
+        self._module_queue = ComputeQueue(config["modules"])
 
-        logger.debug("Create queue with %d modules" % (len(self._module_queue)))
+        logger.debug("Create queue with %d modules" %
+                        (len(self._module_queue)))
 
-    def run(self) -> None:
+    async def _process(self) -> None:
+
+        while True:
+        
+            try:
+                # Run this for every candidate file
+                self._module_queue[0].initialise(ones((4,4)))
+
+                metadata = {
+
+                    "iqrm": {
+
+                    },
+
+                    "threshold": {
+
+                    },
+
+                    "zerodm": {
+
+                    },
+
+                    "mask": {
+                        "multiply": True,
+                        "mask": array([0, 1, 1, 0])
+                    },
+
+                    "candmaker": {
+
+                    },
+
+                    "frbid": {
+
+                    },
+
+                    "multibeam": {
+                        
+                    }
+                }
+
+                for module in self._module_queue:
+                    await module.process(metadata[(module.__class__.__name__[:-6]).lower()])
+                    print(module.get_output())
+
+            except asyncio.CancelledError:
+                logger.info("Compute modules quitting")
+                break
+
+    async def run(self, loop: asyncio.AbstractEventLoop) -> None:
         """
         Start the processing.
 
@@ -48,46 +103,17 @@ class Pipeline:
         self._running = True
         self._paused = False
 
-        # Run this for every candidate file
-        self._module_queue[0].initialise(ones((4,4)))
+        logger.info("Starting up processing...")
 
-        metadata = {
+        watcher = loop.create_task(self._watch_module.watch())
+        computer = loop.create_task(self._process())
 
-            "iqrm": {
+        await asyncio.gather(watcher)
 
-            },
+        logger.info("Finishing the processing...")
+        loop.stop()
 
-            "threshold": {
-
-            },
-
-            "zerodm": {
-
-            },
-
-            "mask": {
-                "multiply": True,
-                "mask": array([0, 1, 1, 0])
-            },
-
-            "candmaker": {
-
-            },
-
-            "frbid": {
-
-            },
-
-            "multibeam": {
-                
-            }
-        }
-
-        for module in self._module_queue:
-            module.process(metadata[(module.__class__.__name__[:-6]).lower()])
-            print(module.get_output())
-
-    def stop(self) -> None:
+    def stop(self, loop: asyncio.AbstractEventLoop) -> None:
         """
         Completely stops and cleans the pipeline.
 
@@ -96,8 +122,15 @@ class Pipeline:
         recovered from occurs or a SIGKILL is caught.
         """
         
+        logger.info("Stopping the pipeline")
+
         self._running = False
         self._paused = False
+
+        tasks = asyncio.Task.all_tasks()
+
+        for t in tasks:
+            t.cancel()
 
     def update(self) -> None:
         """

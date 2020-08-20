@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from typing import Dict
@@ -16,7 +17,7 @@ class Module:
 
         dummy = 1
 
-    def process(self, metadata : Dict) -> None:
+    async def process(self, metadata: Dict) -> None:
 
         """
 
@@ -33,4 +34,4 @@ class Module:
 
         """
 
-        pass
+        await asyncio.sleep(2)

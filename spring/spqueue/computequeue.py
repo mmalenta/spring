@@ -1,14 +1,14 @@
 import logging
-import module.computemodule as cm
+import spmodule.computemodule as cm
 
 from typing import List
 
-from module.computemodule import IqrmModule
-from module.module import Module
+from spmodule.computemodule import IqrmModule
+from spmodule.module import Module
 
 logger = logging.getLogger(__name__)
 
-class ModuleQueue:
+class ComputeQueue:
 
     """
     Queue for pipeline modules.
@@ -28,10 +28,10 @@ class ModuleQueue:
 
     """
 
-    def __init__(self, modules : List[str]):
+    def __init__(self, modules: List[str]):
         
         """
-        Constructs the ModuleQueue object.
+        Constructs the ComputeQueue object.
 
         Parameters:
 
@@ -44,7 +44,11 @@ class ModuleQueue:
         self._queue = []
         self._idx = 0
 
-        modules.extend(self._required)
+        # Just in case no pre-processing is done
+        if modules == None:
+            modules = self._required
+        else:
+            modules.extend(self._required)
 
         for module in modules:
             # Follow the naming convention described in the
@@ -100,7 +104,7 @@ class ModuleQueue:
 
         raise StopIteration
 
-    def __contains__(self, item : str) -> bool:
+    def __contains__(self, item: str) -> bool:
 
         for module in self._queue:
 
@@ -109,7 +113,7 @@ class ModuleQueue:
 
         return False
 
-    def __getitem__(self, idx : int) -> Module:
+    def __getitem__(self, idx: int) -> Module:
 
         """
 

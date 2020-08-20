@@ -1,10 +1,11 @@
+import asyncio
 import logging
 
 from numpy import array, logical_not, newaxis
 from time import sleep
 from typing import Dict
 
-from module.module import Module
+from spmodule.module import Module
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +34,11 @@ class ComputeModule(Module):
         self.id = 0
         super().__init__()
 
-    def initialise(self, indata : array) -> None:
+    def initialise(self, indata: array) -> None:
         
         self.set_input(indata)
 
-    def set_input(self, indata : array) -> None:
+    def set_input(self, indata: array) -> None:
 
         self._data = indata
 
@@ -54,7 +55,7 @@ class IqrmModule(ComputeModule):
         logger.info("IQRM module initialised")
 
 
-    def process(self, metadata : Dict) -> None:
+    async def process(self, metadata : Dict) -> None:
 
         """"
 
@@ -63,7 +64,7 @@ class IqrmModule(ComputeModule):
         """
 
         logger.debug("IQRM module starting processing")
-        sleep(2)
+        await asyncio.sleep(2)
         logger.debug("IQRM module finished processing")
         self._data = self._data + 1
 
@@ -77,7 +78,7 @@ class MaskModule(ComputeModule):
         logger.info("Mask module initialised")
 
 
-    def process(self, metadata : Dict) -> None:
+    async def process(self, metadata : Dict) -> None:
 
         """"
 
@@ -99,13 +100,14 @@ class MaskModule(ComputeModule):
                 masking. Defaults to True, i.e. multiplicative mask.
 
         """
-
+        logger.debug("Mask module starting processing")
         mask = metadata["mask"]
         # Need to revert to a multiplicative mask anyway
         if (metadata["multiply"] == False):
             mask = logical_not(mask)
 
         self._data = self._data * mask[:, newaxis] 
+        logger.debug("Mask module finished processing")
 
 class ThresholdModule(ComputeModule):
 
@@ -124,7 +126,7 @@ class ZerodmModule(ComputeModule):
         logger.info("ZeroDM module initialised")
         
 
-    def process(self, metadata : Dict) -> None:
+    async def process(self, metadata : Dict) -> None:
 
         """"
 
@@ -133,7 +135,7 @@ class ZerodmModule(ComputeModule):
         """
 
         logger.debug("ZeroDM module starting processing")
-        sleep(2)
+        await asyncio.sleep(2)
         logger.debug("ZeroDM module finished processing")
         self._data = self._data + 1
 
@@ -145,7 +147,7 @@ class CandmakerModule(ComputeModule):
         self.id = 50
         logger.info("Candmaker module initialised")
 
-    def process(self, metadata : Dict) -> None:
+    async def process(self, metadata : Dict) -> None:
 
         """"
 
@@ -154,7 +156,7 @@ class CandmakerModule(ComputeModule):
         """
 
         logger.debug("Candmaker module starting processing")
-        sleep(2)
+        await asyncio.sleep(2)
         logger.debug("Candmaker module finished processing")
         self._data = self._data + 1
 
@@ -166,7 +168,7 @@ class FrbidModule(ComputeModule):
         self.id = 60
         logger.info("FRBID module initialised")
 
-    def process(self, metadata : Dict) -> None:
+    async def process(self, metadata : Dict) -> None:
 
         """"
 
@@ -175,7 +177,7 @@ class FrbidModule(ComputeModule):
         """
 
         logger.debug("FRBID module starting processing")
-        sleep(2)
+        await asyncio.sleep(2)
         logger.debug("FRBID module finished processing")
         self._data = self._data + 1
 
@@ -186,3 +188,16 @@ class MultibeamModule(ComputeModule):
         super().__init__()
         self.id = 70
         logger.info("Multibeam module initialised")
+
+    async def process(self, metadata : Dict) -> None:
+
+        """"
+
+        Start the multibeam processing
+
+        """
+
+        logger.debug("Multibeam module starting processing")
+        await asyncio.sleep(2)
+        logger.debug("Multibeam module finished processing")
+        self._data = self._data + 1
