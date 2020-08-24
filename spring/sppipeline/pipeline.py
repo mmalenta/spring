@@ -8,6 +8,7 @@ from typing import Dict
 
 from spmodule.utilitymodule import WatchModule
 from spqueue.computequeue import ComputeQueue
+from spqueue.candidatequeue import CandidateQueue as CandQueue
 
 logger = logging.getLogger(__name__)
 
@@ -34,24 +35,22 @@ class Pipeline:
 
         """
         
-
         self._running = False
         self._paused = False
 
         self._watch_module = WatchModule(config["base_directory"],
                                             config["num_watchers"])
         self._module_queue = ComputeQueue(config["modules"])
+        self._candidate_queue = CandQueue()
 
         logger.debug("Create queue with %d modules" %
                         (len(self._module_queue)))
 
-    async def _process(self) -> None:
+    async def _process(self, cand_queue) -> None:
 
         while True:
         
             try:
-                # Run this for every candidate file
-                self._module_queue[0].initialise(ones((4,4)))
 
                 metadata = {
 
@@ -85,9 +84,13 @@ class Pipeline:
                     }
                 }
 
+                cand_data = await cand_queue.get()
+                logger.debug(cand_data._metadata)
+                self._module_queue[0].initialise(cand_data)
+
                 for module in self._module_queue:
                     await module.process(metadata[(module.__class__.__name__[:-6]).lower()])
-                    print(module.get_output())
+                    print(module.get_output()._data)
 
             except asyncio.CancelledError:
                 logger.info("Compute modules quitting")
@@ -105,10 +108,11 @@ class Pipeline:
 
         logger.info("Starting up processing...")
 
-        watcher = loop.create_task(self._watch_module.watch())
-        computer = loop.create_task(self._process())
+        watcher = loop.create_task(self._watch_module.watch(self._candidate_queue))
+        computer = loop.create_task(self._process(self._candidate_queue))
 
         await asyncio.gather(watcher)
+        self._candidate_queue.join()
 
         logger.info("Finishing the processing...")
         loop.stop()

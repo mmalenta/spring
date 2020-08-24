@@ -5,6 +5,7 @@ from numpy import array, logical_not, newaxis
 from time import sleep
 from typing import Dict
 
+from spcandidate.candidate import Candidate as Cand
 from spmodule.module import Module
 
 logger = logging.getLogger(__name__)
@@ -34,15 +35,15 @@ class ComputeModule(Module):
         self.id = 0
         super().__init__()
 
-    def initialise(self, indata: array) -> None:
+    def initialise(self, indata: Cand) -> None:
         
         self.set_input(indata)
 
-    def set_input(self, indata: array) -> None:
+    def set_input(self, indata: Cand) -> None:
 
         self._data = indata
 
-    def get_output(self) -> array:
+    def get_output(self) -> Cand:
 
         return self._data
 
@@ -64,10 +65,8 @@ class IqrmModule(ComputeModule):
         """
 
         logger.debug("IQRM module starting processing")
-        await asyncio.sleep(2)
+        self._data._data = self._data._data + 1
         logger.debug("IQRM module finished processing")
-        self._data = self._data + 1
-
 
 class MaskModule(ComputeModule):
     
@@ -156,9 +155,8 @@ class CandmakerModule(ComputeModule):
         """
 
         logger.debug("Candmaker module starting processing")
-        await asyncio.sleep(2)
+        self._data._data = self._data._data + 1
         logger.debug("Candmaker module finished processing")
-        self._data = self._data + 1
 
 class FrbidModule(ComputeModule):
 
@@ -177,9 +175,8 @@ class FrbidModule(ComputeModule):
         """
 
         logger.debug("FRBID module starting processing")
-        await asyncio.sleep(2)
+        self._data._data = self._data._data + 1
         logger.debug("FRBID module finished processing")
-        self._data = self._data + 1
 
 class MultibeamModule(ComputeModule):
 
@@ -198,6 +195,5 @@ class MultibeamModule(ComputeModule):
         """
 
         logger.debug("Multibeam module starting processing")
-        await asyncio.sleep(2)
+        self._data._data = self._data + 1
         logger.debug("Multibeam module finished processing")
-        self._data = self._data + 1

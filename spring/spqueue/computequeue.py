@@ -97,6 +97,7 @@ class ComputeQueue:
         if self._idx < len(self._queue):
 
             if self._idx != 0:
+                logger.debug("Sending the data to the next module...")
                 self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
 
             self._idx = self._idx + 1
@@ -119,6 +120,11 @@ class ComputeQueue:
 
         Return the module at specified index.
 
+        Parameters:
+
+            idx : int
+                Index of the requested module
+
         Returns:
 
             : Module
@@ -139,7 +145,15 @@ class ComputeQueue:
     def __len__(self) -> int:
 
         """
-        Leturns the length of the underlying list
+
+        Get the number of modules currently in the queue.
+
+        Returns the length of the underlying module list
+
+        Returns:
+
+            : int 
+            Lenght of the module queue (list)
 
         """
 
