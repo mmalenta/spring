@@ -94,7 +94,7 @@ class Pipeline:
 
             except asyncio.CancelledError:
                 logger.info("Compute modules quitting")
-                break
+                return
 
     async def run(self, loop: asyncio.AbstractEventLoop) -> None:
         """
@@ -111,7 +111,7 @@ class Pipeline:
         watcher = loop.create_task(self._watch_module.watch(self._candidate_queue))
         computer = loop.create_task(self._process(self._candidate_queue))
 
-        await asyncio.gather(watcher)
+        await asyncio.gather(watcher, computer)
         self._candidate_queue.join()
 
         logger.info("Finishing the processing...")
@@ -134,7 +134,9 @@ class Pipeline:
         tasks = asyncio.Task.all_tasks()
 
         for t in tasks:
-            t.cancel()
+
+            if t._coro.__name__ != "run":
+                t.cancel()
 
     def update(self) -> None:
         """

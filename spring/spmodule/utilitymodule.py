@@ -272,7 +272,7 @@ class WatchModule(UtilityModule):
 
       except asyncio.CancelledError:
         logger.info("Watcher quitting")
-        break
+        return
       
 
   def _read_logs(self, directory: str, 
