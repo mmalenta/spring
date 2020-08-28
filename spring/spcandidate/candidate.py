@@ -23,4 +23,8 @@ class Candidate:
     def __init__(self, cand: Dict) -> None:
 
         self._data = cand["data"]
-        self._metadata = cand["metadata"]
+        self._metadata = {
+            "fil_metadata": cand["fil_metadata"],
+            "cand_metadata": cand["cand_metadata"],
+        }
+        self._time_added = cand["time"]

@@ -8,7 +8,7 @@ from numpy import fromfile, reshape
 from os import path, scandir, stat
 from pandas import read_csv
 from struct import unpack
-from time import mktime, strptime
+from time import mktime, perf_counter, strptime
 from typing import Dict, List
 
 from spcandidate.candidate import Candidate as Cand
@@ -240,13 +240,15 @@ class WatchModule(UtilityModule):
                                   / header["nchans"])
                   file_length_s = (file_samples * float(header["tsamp"]))
                   file_length_mjd = file_length_s * self._mjd_const
-                  file_start = header["tstart"]
+                  file_start = header["mjd"]
                   file_end = file_start + file_length_mjd
                   logger.debug(f"File {file_path} spanning MJDs between "
                                 + f"{file_start} and {file_end}")
 
                   matched_cands = cands[(cands["MJD"] >= file_start) &
                                           (cands["MJD"] < file_end)]
+
+                  print(matched_cands)
 
                   if len(matched_cands) == 0:
                     logger.warning(f"No candidates found for file {file_path}")
@@ -255,11 +257,24 @@ class WatchModule(UtilityModule):
 
                   cand_dict = {
                     "data": reshape(fil_data, (-1, header["nchans"])).T,
-                    "metadata": header
+                    "fil_metadata": header,
+                    "cand_metadata": {},
+                    "time": perf_counter()
                   }
 
-                  await cand_queue.put(Cand(cand_dict))
-                  logger.debug(f"Candidate queue size is now {cand_queue.qsize()}")
+                  for candidx, cand in matched_cands.iterrows():
+                    print(cand)
+                    cand_metadata = {
+                      "mjd": cand["MJD"],
+                      "dm": cand["DM"],
+                      "width": cand["Width"],
+                      "snr": cand["SNR"]
+                    }
+
+                    cand_dict["cand_metadata"] = cand_metadata
+
+                    await cand_queue.put(Cand(cand_dict))
+                    logger.debug(f"Candidate queue size is now {cand_queue.qsize()}")
           # Update the newest file times for all the beams
           data["last_file"] = last_file
 
@@ -337,7 +352,7 @@ class WatchModule(UtilityModule):
       "foff": foff,
       "nchans": nchans,
       "tsamp": tsamp,
-      "tstart": tstart
+      "mjd": tstart
     }
 
     return header
