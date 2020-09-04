@@ -3,11 +3,11 @@ import cupy as cp
 import logging
 import matplotlib.pyplot as plt
 
-from math import ceil
+from math import ceil, sqrt
 from mtcutils.core import normalise
 from mtcutils import iqrm_mask as iqrm
 from numpy import append, array, linspace, logical_not, mean, newaxis, random
-from numpy import round as npround
+from numpy import round as npround, std
 from time import perf_counter, sleep
 from typing import Dict
 
@@ -74,10 +74,12 @@ class IqrmModule(ComputeModule):
 
     logger.debug("IQRM module starting processing")
     iqrm_start = perf_counter()
-    scaled, mean, std = normalise(self._data._data)
-    mask = iqrm(std, maxlag=3)
+    scaled, mean, stdev = normalise(self._data._data)
+    mask = iqrm(stdev, maxlag=3)
     scaled[mask] = 0
     self._data._data = scaled
+    self._data._mean = mean
+    self._data._stdev = stdev
     iqrm_end = perf_counter()
     logger.debug("IQRM module finished processing in "
                   + f"{(iqrm_end - iqrm_start):.4}s")
@@ -163,6 +165,11 @@ class CandmakerModule(ComputeModule):
 
     super().__init__()
     self.id = 50
+    # Output padding on each side of the candidate
+    self._time_padding = 128
+    self._time_samples = 256
+    self._freq_bands = 256
+    self._trial_dms = 256
     logger.info("Candmaker module initialised")
 
   async def process(self, metadata : Dict) -> None:
@@ -173,6 +180,10 @@ class CandmakerModule(ComputeModule):
 
     """
 
+    cand_metadata = self._data._metadata["cand_metadata"]
+    fil_metadata = self._data._metadata["fil_metadata"]
+
+    candmaker_start = perf_counter()
     logger.debug("Candmaker module starting processing")
     
     # Averaging padding
@@ -189,13 +200,13 @@ class CandmakerModule(ComputeModule):
     cand_mjd = self._data._metadata["cand_metadata"]["mjd"]
 
     fil_samp = self._data._data.shape[1]
-    padding_required = ceil(fil_samp * time_avg_factor) * time_avg - fil_samp
-    logger.debug(f"{fil_samp} original samples require {padding_required} "
+    avg_padding_required = ceil(fil_samp * time_avg_factor) * time_avg - fil_samp
+    logger.debug(f"{fil_samp} original samples require {avg_padding_required} "
                   + "samples of padding")
 
     pad_start = perf_counter()
     self._data._data = append(self._data._data, 
-                              self._data._data[:, -1 * padding_required :],
+                              self._data._data[:, -1 * avg_padding_required :],
                               axis=1)
     pad_end = perf_counter()
     logger.debug(f"Padding finished in {(pad_end - pad_start):.4}s")
@@ -205,18 +216,18 @@ class CandmakerModule(ComputeModule):
 
     # Averaging
     nchans = self._data._metadata["fil_metadata"]["nchans"]
-    test_sum = self._data._data[512, :time_avg].sum()
     avg_start = perf_counter()
     self._data._data = self._data._data.reshape(nchans,
-                                                -1, time_avg).sum(axis=2)
+                        -1, time_avg).sum(axis=2) / time_avg
+
+    
+
     avg_end = perf_counter()
     logger.debug(f"Averaging finished in {(avg_end - avg_start):.4}s")
     fil_samp = self._data._data.shape[1]
     logger.debug(f"{fil_samp} samples after averaging")
-    assert test_sum == self._data._data[512, 0]
 
     # Dedispersion padding
-
     # How many TIME AVERAGED samples is between our candidate and the
     # start of the filterbank file
     tsamp_s = tsamp_s * time_avg
@@ -225,28 +236,22 @@ class CandmakerModule(ComputeModule):
                   + f"{samps_from_start} samples away "
                   + f"from the start of file MJD of {fil_mjd:.11}")
 
-    # How many padding samples we need in the final product
-    output_padding = 128
-    # This works with negative values as well
-    # If there is more data than the required padding
-    # we simply ignore it
-    padding_required_start = int(output_padding - samps_from_start)
+    # How many start padding samples we need in the final product
+    # If this becomes negative - we do not need padding, we need to
+    # cut the data instead
+    padding_required_start = int(self._time_padding - samps_from_start)
 
     # How many TIME AVERAGED samples is between the end of our
     # dispersed candidate and the end of the filterbank file
     samps_from_end = fil_samp - samps_from_start
-
     # For the DMT, the highest DM we go up to is twice the candidate DM
-    # Dedispersion
     top_dm = 2.0 * self._data._metadata["cand_metadata"]["dm"]
     freq_top = self._data._metadata["fil_metadata"]["fch1"]
     freq_band = self._data._metadata["fil_metadata"]["foff"]
     # That calculation assumes we go from the middle of top channel
     # to the middle of the bottom channel
     freq_bottom = freq_top + (nchans - 1) * freq_band
-
     scaling = 4.148808e+03 / tsamp_s
-
     max_delay_samples = int(round(scaling * top_dm * (1 / freq_bottom**2
                             - 1 /freq_top**2)))
 
@@ -254,44 +259,72 @@ class CandmakerModule(ComputeModule):
                   + f"{max_delay_samples} samples @ {tsamp_s:.5}ms")
 
     # Each DM in the DMT output needs end padding samples
-    samples_required = int(max_delay_samples + output_padding)
+    samples_required = int(max_delay_samples + self._time_padding)
 
-    if samps_from_end > samples_required:
-      padding_required_end = 0
-    else: 
-      padding_required_end = int(max_delay_samples + output_padding
-                                - samps_from_end)
-
-    logger.debug(f"{padding_required_start} samples of padding at the start "
-                  + f"and {padding_required_end} samples of padding "
-                  + f"at the end required for dedispersion")
-
+    # How many end padding samples we need in the final product
+    # If this becomes negative - we do not need padding, we need to
+    # cut the data instead
+    padding_required_end = int(samples_required - samps_from_end)
     full_samples = padding_required_start + fil_samp + padding_required_end
 
+    logger.debug(f"{padding_required_start} samples "
+                + f"{'of padding' if padding_required_start > 0 else 'removed'}"
+                + f" at the start and {padding_required_end} samples "
+                + f"{'of padding' if padding_required_end > 0 else 'removed'}"
+                + f" at the end for dedispersion")
+
+    logger.debug(f"Final input with {full_samples} samples will be used")
+
+    if padding_required_start < 0:
+      input_skip_start = abs(padding_required_start)
+      padding_required_start = 0
+    else:
+      input_skip_start = 0
+
+    if padding_required_end < 0:
+      input_skip_end = abs(padding_required_end)
+      padding_required_end = 0
+    else:
+      input_skip_end = 0
+
+    logger.debug(padding_required_start)
+    logger.debug(padding_required_end)
+    logger.debug(input_skip_start)
+    logger.debug(input_skip_end)
+
     pad_start = perf_counter()
-    padded_data = random.random_sample((nchans, full_samples)).astype(cp.float32)
-    padded_data[:, padding_required_start:padding_required_start + fil_samp] \
-                = self._data._data
+  
+    # Recalculate these
+    new_mean = mean(self._data._data[:, input_skip_start:fil_samp - input_skip_end], axis=1)
+    new_stdev = std(self._data._data[:, input_skip_start:fil_samp - input_skip_end], axis=1)
+
+    print(new_mean)
+    print(new_stdev)
+
+    padded_data = ((random.randn(nchans, full_samples).astype(cp.float32).T * new_stdev).T
+                  + new_mean[:, newaxis])
+
+    padded_data[:, padding_required_start:padding_required_start + fil_samp - input_skip_end - input_skip_start] \
+                = self._data._data[:, input_skip_start:fil_samp - input_skip_end]
     pad_end = perf_counter()
     logger.debug("Dedispersion padding finished in "
                   + f"{(pad_end - pad_start):.4}s")
+    
+    """
     fig, ax = plt.subplots(2, 1, figsize=(15,20))
     ax[0].imshow(padded_data, aspect="auto")
     ax[1].hist(padded_data.flatten(), bins=100)    
-    fig.savefig("testinput.png")
+    fig.savefig("testinput" + self._data._metadata["fil_metadata"]["fil_file"] + ".png")
     plt.close()
+    """
     # DMT
-    gpu_in = cp.asarray(padded_data)
-    gpu_out = cp.zeros((256, 256), dtype=cp.float32)
+    dmt_gpu_in = cp.asarray(padded_data)
+    dmt_gpu_out = cp.zeros((self._trial_dms, self._time_samples),
+                            dtype=cp.float32)
+    dedisp_gpu_out = cp.zeros((self._freq_bands, self._time_samples),
+                              dtype=cp.float32)
 
-    # x takes care of time, y takes care of DM
-    threads_x = 256
-    threads_y = int(1024 / threads_x)
-
-    blocks_x = 1
-    blocks_y = int(256 / threads_y)
-
-    delay_factors = (scaling * (1.0 / linspace(freq_top, freq_bottom, 1024)**2
+    delay_factors = (scaling * (1.0 / linspace(freq_top, freq_bottom, nchans)**2
                     - 1 / freq_top**2)).astype(cp.float32)
     gpu_delays = cp.asarray(delay_factors)
     # We start at 0
@@ -319,23 +352,82 @@ class CandmakerModule(ComputeModule):
       }
     """, "dmt_kernel")
 
+    DedispKernel = cp.RawKernel(r"""
+    
+      extern "C" __global__ void dedisp_kernel(float* __restrict__ indata,
+                                                float* __restrict__ outdata,
+                                                float* __restrict__ delays,
+                                                float dm,
+                                                int band_size,
+                                                int nsamp)
+      {
+        int tidx = threadIdx.x;
+        int bandidx = blockIdx.y * blockDim.y + threadIdx.y;
+        int chanidx = bandidx * band_size;
+        int outidx = blockDim.x * bandidx + tidx;
+
+        float sum = 0.0;
+
+        int skip_band = chanidx * nsamp;
+
+        for (int ichan = 0; ichan < band_size; ++ichan) {
+          sum += indata[skip_band + tidx + __float2int_rd(dm * delays[chanidx])];
+          skip_band += nsamp;
+          chanidx += 1;
+        }
+
+        outdata[outidx] = sum;
+
+      }
+
+    """, "dedisp_kernel")
+
+    band_size = int(nchans / self._freq_bands)
+
+    # These are two independed kernels - could we run then in streams?
     dmt_start = perf_counter()
+    # x takes care of time, y takes care of DM
+    threads_x = self._time_samples
+    threads_y = int(1024 / threads_x)
+    blocks_x = 1
+    blocks_y = int(self._trial_dms / threads_y)
+
     DMTKernel((blocks_x, blocks_y), (threads_x, threads_y),
-              (gpu_in, gpu_out, gpu_delays, dmdiff, nchans, padded_data.shape[1]))
+              (dmt_gpu_in, dmt_gpu_out, gpu_delays, dmdiff, nchans,
+              padded_data.shape[1]))
     cp.cuda.Device(0).synchronize()
     dmt_end = perf_counter()
     logger.debug(f"GPU DMT took {dmt_end - dmt_start:.4}s")
 
-    cpu_out = cp.asnumpy(gpu_out)
+    dedisp_start = perf_counter()
+    # x takes care of time, y takes care of frequency band
+    threads_x = self._time_samples
+    threads_y = int(1024 / threads_x)
+    blocks_x = 1
+    blocks_y = int(self._freq_bands / threads_y)
+
+    DedispKernel((blocks_x, blocks_y), (threads_x, threads_y),
+                  (dmt_gpu_in, dedisp_gpu_out, gpu_delays,
+                  cp.float32(cand_metadata["dm"]), band_size, padded_data.shape[1]))
+    cp.cuda.Device(0).synchronize()
+    dedisp_end = perf_counter()
+    logger.debug(f"GPU dedispersion to DM of {cand_metadata['dm']} "
+                  + f"took {dedisp_end - dedisp_start:.4}s")
+
+    dmt_cpu_out = cp.asnumpy(dmt_gpu_out)
+    dedisp_cpu_out = cp.asnumpy(dedisp_gpu_out)
 
     fig, ax = plt.subplots(2, 1, figsize=(15,20))
-    ax[0].imshow(cpu_out, aspect="auto")
-    ax[1].hist(cpu_out.flatten(), bins=100)    
-    fig.savefig("testoutput.png")
+    ax[0].imshow(dmt_cpu_out, aspect="auto", interpolation="none")
+    ax[1].imshow(dedisp_cpu_out, aspect="auto", interpolation="none")    
+    fig.savefig("testoutput" + self._data._metadata["fil_metadata"]["fil_file"] + ".png")
     plt.close()
-
+    
     self._data._data = self._data._data + 1
     logger.debug("Candmaker module finished processing")
+    candmaker_end = perf_counter()
+    logger.debug("Candmaker module finished in "
+                  + f"{(candmaker_end - candmaker_start):.4}s")
 
 class FrbidModule(ComputeModule):
 

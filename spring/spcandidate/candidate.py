@@ -1,3 +1,5 @@
+
+from numpy import empty
 from typing import Dict
 
 class Candidate:
@@ -22,6 +24,8 @@ class Candidate:
 
     def __init__(self, cand: Dict) -> None:
 
+        self._mean = empty(0)
+        self._stdev = empty(0)
         self._data = cand["data"]
         self._metadata = {
             "fil_metadata": cand["fil_metadata"],

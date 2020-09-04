@@ -235,6 +235,7 @@ class WatchModule(UtilityModule):
 
                   ff.seek(0, 0)
                   header = self._read_header(ff)
+                  header["fil_file"] = ifile[0]
                   
                   file_samples = int((ifile[2] - self._fil_header_size) 
                                   / header["nchans"])
