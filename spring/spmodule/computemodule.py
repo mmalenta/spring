@@ -1,6 +1,7 @@
 import asyncio
 import cupy as cp
 import logging
+import h5py as h5
 import matplotlib.pyplot as plt
 
 from FRBID_code.prediction_phase import load_candidate, FRB_prediction
@@ -474,10 +475,15 @@ class FrbidModule(ComputeModule):
     logger.info("FRBID module initialised")
 
     self._model = None
+    self._out_queue = None
 
   def set_model(self, model) -> None:
 
     self._model = model
+
+  def set_out_queue(self, out_queue) -> None:
+
+    self._out_queue = out_queue
 
   async def process(self, metadata : Dict) -> None:
 
@@ -498,6 +504,10 @@ class FrbidModule(ComputeModule):
     pred_end = perf_counter()
 
     logger.info(f"Label {label} with probability of {prob}")
+
+    if label > 0.0:
+      await self._out_queue.put(self._data)
+
     logger.debug(f"Prediction took {pred_end - pred_start:.4}s")
     logger.debug("FRBID module finished processing")
 

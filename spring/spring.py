@@ -58,6 +58,20 @@ def main():
                         nargs=2,
                         type=str)
 
+    # Plots selection is input in the format:
+    # [plot1][size[1],[plot2][size2][:][plot3]
+    # Plots separated by a comma appear in the same row
+    # Their sizes are a fraction of the full row width and can run
+    # between 0.0 and 1.0 (if they do not sum up to 1.0, they are scaled
+    # accordingly). Sizes are optional - if not included, all the plots
+    # in the row will have the same width
+    # Colon is used to indicate a new row
+    # Row heights are currently set to be equal
+    parser.add_argument("-p", "--plots", help="Plots to enable",
+                        required=False,
+                        # If used, require at least one type of plot
+                        type=str)
+
     arguments = parser.parse_args()
 
     logger.setLevel(getattr(logging, arguments.log.upper()))
@@ -78,17 +92,21 @@ def main():
 
     chosen_dir = arguments.model[1]
     if not path.isdir(chosen_dir):
-
         logger.error(f"Model directory '{chosen_dir}' does not exist! "
                         + "Will quit now!")
         # So this is not ideal, but will do for now
         exit()
 
+    # Separate into list of lists of tuples (one inner list per row)
+    plots = [ [(cell[0], float(cell[1:])) for cell in row.split(",")]
+                for row in arguments.plots.split(":") ]
+
     configuration = {
         "base_directory": arguments.directory,
         "num_watchers": arguments.watchers,
         "modules": arguments.modules,
-        "model": [chosen_model, chosen_dir]
+        "model": [chosen_model, chosen_dir],
+        "plots": plots,
     }
 
     pipeline = Pipeline(configuration)

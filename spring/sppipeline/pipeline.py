@@ -13,7 +13,7 @@ from tensorflow import ConfigProto, Session
 from time import perf_counter, sleep
 from typing import Dict
 
-from spmodule.utilitymodule import WatchModule
+from spmodule.utilitymodule import ArchiveModule, PlotModule, WatchModule
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateQueue as CandQueue
 
@@ -47,8 +47,16 @@ class Pipeline:
 
     self._watch_module = WatchModule(config["base_directory"],
                                         config["num_watchers"])
+
+    # For now we keep them as separate modules
+    # Might developed into full 'post' queue like with the processing
+    # if we want to enable/disable different modules
+    self._plot_module = PlotModule(config)
+    self._archive_module = ArchiveModule(config)
+
     self._module_queue = ComputeQueue(config["modules"])
     self._candidate_queue = CandQueue()
+    self._final_queue = CandQueue()
 
     logger.debug("Created queue with %d modules" %
                   (len(self._module_queue)))
@@ -69,6 +77,7 @@ class Pipeline:
     # FRBID should ususally be at the end
     # Just in case there is some extra post-classification processing
     self._module_queue["frbid"].set_model(model)
+    self._module_queue["frbid"].set_out_queue(self._final_queue)
 
     logger.debug("TensorFlow has been set up")
 
@@ -133,9 +142,29 @@ class Pipeline:
         logger.debug("Candidate finished processing "
                       + f"{(perf_counter() - cand_data._time_added):.4}s "
                       + "after being added to the queue.")
+
       except asyncio.CancelledError:
           logger.info("Compute modules quitting")
           return
+
+  async def _finalise(self, final_queue) -> None:
+
+    while True:
+
+      try:
+
+        cand_data = await final_queue.get()
+        logger.debug(cand_data._metadata)
+        logger.debug(cand_data._data)
+        logger.debug(cand_data._ml_cand)
+
+        await self._plot_module.plot()
+        await self._archive_module.archive()
+
+      except asyncio.CancelledError:
+          logger.info("Computing has been finalised")
+          return
+
 
   async def run(self, loop: asyncio.AbstractEventLoop) -> None:
     """
@@ -151,10 +180,11 @@ class Pipeline:
 
     watcher = loop.create_task(self._watch_module.watch(self._candidate_queue))
     computer = loop.create_task(self._process(self._candidate_queue))
+    finaliser = loop.create_task(self._finalise(self._final_queue))
     listener = loop.create_task(asyncio.start_server(self._listen,
                                 "127.0.0.1", 9999))
 
-    await asyncio.gather(listener, watcher, computer)
+    await asyncio.gather(listener, watcher, computer, finaliser)
 
     logger.info("Finishing the processing...")
     loop.stop()

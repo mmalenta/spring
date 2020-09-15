@@ -29,8 +29,6 @@ class UtilityModule(Module):
     super().__init__()
     logger.info("Utility module")
 
-
-
 class WatchModule(UtilityModule):
 
   """
@@ -358,3 +356,18 @@ class WatchModule(UtilityModule):
 
     return header
 
+class PlotModule(UtilityModule):
+
+  def __init__(self, config):
+    super().__init__()
+
+  async def plot(self):
+    pass
+
+class ArchiveModule(UtilityModule):
+
+  def __init__(self, config):
+    super().__init__()
+
+  async def archive(self):
+    pass
