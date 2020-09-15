@@ -1,9 +1,15 @@
 import asyncio
+import cupy as cp
 import functools
 import logging
 import signal
 
+
+from keras.backend.tensorflow_backend import set_session
+from keras.models import model_from_json
 from numpy import array, ones, random
+from os import path
+from tensorflow import ConfigProto, Session
 from time import perf_counter, sleep
 from typing import Dict
 
@@ -44,8 +50,27 @@ class Pipeline:
     self._module_queue = ComputeQueue(config["modules"])
     self._candidate_queue = CandQueue()
 
-    logger.debug("Create queue with %d modules" %
+    logger.debug("Created queue with %d modules" %
                   (len(self._module_queue)))
+
+    logger.debug("Setting up TensorFlow...")
+
+    tf_config = ConfigProto()
+    tf_config.gpu_options.per_process_gpu_memory_fraction = 0.25
+    set_session(Session(config=tf_config))
+    cp.cuda.Device(0).use()
+
+    with open(path.join(config["model"][1],
+              config["model"][0] + ".json"), "r") as mf:
+      model = model_from_json(mf.read())
+
+    model.load_weights(path.join(config["model"][1],
+                        config["model"][0] + ".h5"))
+    # FRBID should ususally be at the end
+    # Just in case there is some extra post-classification processing
+    self._module_queue["frbid"].set_model(model)
+
+    logger.debug("TensorFlow has been set up")
 
   async def _listen(self, reader, writer) -> None:
 
@@ -91,6 +116,8 @@ class Pipeline:
           "candmaker": {
           },
           "frbid": {
+            "model": "NET3",
+            "threshold": 0.5,
           },
           "multibeam": {
           }

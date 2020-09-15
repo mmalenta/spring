@@ -4,6 +4,7 @@ import logging
 import signal
 
 from functools import partial
+from os import path
 
 from sppipeline.pipeline import Pipeline
 
@@ -52,16 +53,14 @@ def main():
                         choices=["iqrm", "zerodm", "threshold", "mask",
                                     "multibeam", "plot", "archive"])
 
+    parser.add_argument("--model", help="Model name and model directory",
+                        required=True,
+                        nargs=2,
+                        type=str)
+
     arguments = parser.parse_args()
 
-    configuration = {
-        "base_directory": arguments.directory,
-        "num_watchers": arguments.watchers,
-        "modules": arguments.modules
-    }
-
     logger.setLevel(getattr(logging, arguments.log.upper()))
-
     # Might set a separate file handler for warning messages
     cl_handler = logging.StreamHandler()
     formatter = logging.Formatter("%(asctime)s, %(levelname)s: %(message)s", datefmt="%a %Y-%m-%d %H:%M:%S")
@@ -69,13 +68,34 @@ def main():
     cl_handler.setFormatter(formatter)
     logger.addHandler(cl_handler)
 
-    pipeline = Pipeline(configuration)
+    chosen_model = arguments.model[0].upper()
+    if (chosen_model not in
+            ["NET1_32_64", "NET1_64_128", "NET1_128_256", "NET2", "NET3"]):
+        
+        logger.warning(f"Unrecognised model '{chosen_model}'! " 
+                        + "Will default to NET3!")
+        chosen_model = "NET3"
 
+    chosen_dir = arguments.model[1]
+    if not path.isdir(chosen_dir):
+
+        logger.error(f"Model directory '{chosen_dir}' does not exist! "
+                        + "Will quit now!")
+        # So this is not ideal, but will do for now
+        exit()
+
+    configuration = {
+        "base_directory": arguments.directory,
+        "num_watchers": arguments.watchers,
+        "modules": arguments.modules,
+        "model": [chosen_model, chosen_dir]
+    }
+
+    pipeline = Pipeline(configuration)
     loop = asyncio.get_event_loop()
     # Handle CTRL + C
     loop.add_signal_handler(getattr(signal, 'SIGINT'),
                                         partial(pipeline.stop, loop))    
-
     loop.create_task(pipeline.run(loop))
 
     try:

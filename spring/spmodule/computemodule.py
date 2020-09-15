@@ -3,13 +3,15 @@ import cupy as cp
 import logging
 import matplotlib.pyplot as plt
 
+from FRBID_code.prediction_phase import load_candidate, FRB_prediction
 from math import ceil, sqrt
 from mtcutils.core import normalise
 from mtcutils import iqrm_mask as iqrm
-from numpy import append, array, linspace, logical_not, mean, newaxis, random
-from numpy import round as npround, std
+from numpy import append, array, clip, linspace, logical_not, mean, median
+from numpy import newaxis, random, round as npround, std
 from time import perf_counter, sleep
 from typing import Dict
+
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.module import Module
@@ -105,16 +107,16 @@ class MaskModule(ComputeModule):
 
     Parameters:
 
-    metadata["mask"] : array
-    Mask with the length of the number of channels in the
-    data. Only values 0 and 1 are allowed. If not supplied,
-    none of the channels will be masked.
+      metadata["mask"] : array
+        Mask with the length of the number of channels in the
+        data. Only values 0 and 1 are allowed. If not supplied,
+        none of the channels will be masked.
 
-    medatata["multiply"] : bool
-    If true, then the mask is multiplicative, i.e. the data
-    is multiplied with the values is the mask; if false, the
-    mask is logical, i.e. 0 means not masking and 1 means
-    masking. Defaults to True, i.e. multiplicative mask.
+      medatata["multiply"] : bool
+        If true, then the mask is multiplicative, i.e. the data
+        is multiplied with the values is the mask; if false, the
+        mask is logical, i.e. 0 means not masking and 1 means
+        masking. Defaults to True, i.e. multiplicative mask.
 
     """
     logger.debug("Mask module starting processing")
@@ -171,6 +173,40 @@ class CandmakerModule(ComputeModule):
     self._freq_bands = 256
     self._trial_dms = 256
     logger.info("Candmaker module initialised")
+
+  def _normalise_clip(self, data, clip_range=None):
+    """
+
+    Normalise and clip the data.
+
+    Normalisation is done to zero median and unit standard deviation.
+    Median and standard deviation are calculated globally over the
+    flattened array.
+    Parematers:
+
+      data: array
+        Original data array
+    
+      clip_range: float
+        Sigma to clip to
+
+    Returns:
+
+      data: array
+        Normalised and clipped data
+
+    """
+    data = array(data, dtype=cp.float32)
+    med = median(data)
+    stdev = std(data)
+    logging.debug(f'Data median: {med}')
+    logging.debug(f'Data std: {stdev}')
+    data -= med
+    data /= stdev
+
+    if clip_range != None:
+        data = clip(data, -1.0 * clip_range, clip_range) 
+    return data
 
   async def process(self, metadata : Dict) -> None:
 
@@ -287,23 +323,13 @@ class CandmakerModule(ComputeModule):
     else:
       input_skip_end = 0
 
-    logger.debug(padding_required_start)
-    logger.debug(padding_required_end)
-    logger.debug(input_skip_start)
-    logger.debug(input_skip_end)
-
     pad_start = perf_counter()
-  
     # Recalculate these
     new_mean = mean(self._data._data[:, input_skip_start:fil_samp - input_skip_end], axis=1)
     new_stdev = std(self._data._data[:, input_skip_start:fil_samp - input_skip_end], axis=1)
 
-    print(new_mean)
-    print(new_stdev)
-
     padded_data = ((random.randn(nchans, full_samples).astype(cp.float32).T * new_stdev).T
                   + new_mean[:, newaxis])
-
     padded_data[:, padding_required_start:padding_required_start + fil_samp - input_skip_end - input_skip_start] \
                 = self._data._data[:, input_skip_start:fil_samp - input_skip_end]
     pad_end = perf_counter()
@@ -417,12 +443,22 @@ class CandmakerModule(ComputeModule):
     dmt_cpu_out = cp.asnumpy(dmt_gpu_out)
     dedisp_cpu_out = cp.asnumpy(dedisp_gpu_out)
 
+    self._data._ml_cand["dmt"] = self._normalise_clip(dmt_cpu_out)
+    self._data._ml_cand["dedisp"] = self._normalise_clip(dedisp_cpu_out, 3)
+
     fig, ax = plt.subplots(2, 1, figsize=(15,20))
     ax[0].imshow(dmt_cpu_out, aspect="auto", interpolation="none")
     ax[1].imshow(dedisp_cpu_out, aspect="auto", interpolation="none")    
     fig.savefig("testoutput" + self._data._metadata["fil_metadata"]["fil_file"] + ".png")
     plt.close()
     
+    hdf5_start = perf_counter()
+
+
+    hdf5_end = perf_counter()
+    logger.debug(f"HDF5 writing took {hdf5_end - hdf5_start:.4}s")
+
+
     self._data._data = self._data._data + 1
     logger.debug("Candmaker module finished processing")
     candmaker_end = perf_counter()
@@ -437,6 +473,12 @@ class FrbidModule(ComputeModule):
     self.id = 60
     logger.info("FRBID module initialised")
 
+    self._model = None
+
+  def set_model(self, model) -> None:
+
+    self._model = model
+
   async def process(self, metadata : Dict) -> None:
 
     """"
@@ -446,7 +488,17 @@ class FrbidModule(ComputeModule):
     """
 
     logger.debug("FRBID module starting processing")
-    self._data._data = self._data._data + 1
+
+    pred_start = perf_counter()
+
+    pred_data = load_candidate(self._data._ml_cand)
+    prob, label = FRB_prediction(model=self._model, X_test=pred_data,
+                                  probability=metadata["threshold"])
+
+    pred_end = perf_counter()
+
+    logger.info(f"Label {label} with probability of {prob}")
+    logger.debug(f"Prediction took {pred_end - pred_start:.4}s")
     logger.debug("FRBID module finished processing")
 
 class MultibeamModule(ComputeModule):

@@ -27,6 +27,10 @@ class Candidate:
         self._mean = empty(0)
         self._stdev = empty(0)
         self._data = cand["data"]
+        self._ml_cand = {
+            "dmt": empty(0),
+            "dedisp": empty(0),
+        }
         self._metadata = {
             "fil_metadata": cand["fil_metadata"],
             "cand_metadata": cand["cand_metadata"],

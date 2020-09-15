@@ -114,15 +114,19 @@ class ComputeQueue:
 
         return False
 
-    def __getitem__(self, idx: int) -> Module:
+    def __getitem__(self, idx) -> Module:
 
         """
 
-        Return the module at specified index.
+        Return the requested module.
+
+        If the index is an integer it simply returns module at that
+        position. If it is a string however, it tries to find the module
+        of this type.
 
         Parameters:
 
-            idx : int
+            idx : int or str
                 Index of the requested module
 
         Returns:
@@ -136,9 +140,16 @@ class ComputeQueue:
             module queue.
 
         """
+        if isinstance(idx, int):
+            if idx < len(self._queue):
+                return self._queue[idx]
 
-        if idx < len(self._queue):
-            return self._queue[idx]
+        if isinstance(idx, str):
+
+            for module in self._queue:
+                if isinstance(module, getattr(cm, idx.capitalize() + "Module")):
+                    print("Found module " + idx)
+                    return module
 
         raise IndexError
 

@@ -324,7 +324,7 @@ class WatchModule(UtilityModule):
 
     Parameters:
 
-      file : 
+      file: 
         Filterbank file buffer
 
     Returns:
