@@ -159,7 +159,7 @@ class Pipeline:
         logger.debug(cand_data._ml_cand)
 
         await self._plot_module.plot(cand_data)
-        await self._archive_module.archive()
+        await self._archive_module.archive(cand_data)
 
       except asyncio.CancelledError:
           logger.info("Computing has been finalised")
