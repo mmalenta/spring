@@ -863,6 +863,18 @@ class PlotModule(UtilityModule):
     save_end = perf_counter()
     logger.debug(f"Saving the plot took {(save_end - save_start):.4}s")
 
+    extra_file = path.join(fil_metadata["full_dir"], 'Plots', 'used_candidates.spccl.extra')
+
+    with open(extra_file, 'a') as ef:
+      ef.write("%d\t%.10f\t%.4f\t%.4f\t%.2f\t%d\t%s\t%s\t%s\t%s\t%s\n" % 
+                (0, cand_metadata["mjd"], cand_metadata["dm"],
+                cand_metadata["width"], cand_metadata["snr"],
+                beam_metadata["beam_abs"], beam_metadata["beam_type"],
+                beam_metadata['beam_ra'], beam_metadata["beam_dec"],
+                fil_metadata["fil_file"], plot_name))
+
+
+
 class ArchiveModule(UtilityModule):
 
   def __init__(self, config: Dict):
