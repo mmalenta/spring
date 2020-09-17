@@ -26,6 +26,7 @@ class Candidate:
 
         self._mean = empty(0)
         self._stdev = empty(0)
+        # Need to rename it to something more meaningful
         self._data = cand["data"]
         self._ml_cand = {
             "dmt": empty(0),
@@ -34,5 +35,6 @@ class Candidate:
         self._metadata = {
             "fil_metadata": cand["fil_metadata"],
             "cand_metadata": cand["cand_metadata"],
+            "beam_metadata": cand["beam_metadata"],
         }
         self._time_added = cand["time"]

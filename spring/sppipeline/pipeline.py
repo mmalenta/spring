@@ -51,7 +51,7 @@ class Pipeline:
     # For now we keep them as separate modules
     # Might developed into full 'post' queue like with the processing
     # if we want to enable/disable different modules
-    self._plot_module = PlotModule(config)
+    self._plot_module = PlotModule(config["plots"])
     self._archive_module = ArchiveModule(config)
 
     self._module_queue = ComputeQueue(config["modules"])
@@ -158,7 +158,7 @@ class Pipeline:
         logger.debug(cand_data._data)
         logger.debug(cand_data._ml_cand)
 
-        await self._plot_module.plot()
+        await self._plot_module.plot(cand_data)
         await self._archive_module.archive()
 
       except asyncio.CancelledError:

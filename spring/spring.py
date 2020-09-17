@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('Agg')
+
 import argparse as ap
 import asyncio
 import logging
@@ -70,7 +73,17 @@ def main():
     parser.add_argument("-p", "--plots", help="Plots to enable",
                         required=False,
                         # If used, require at least one type of plot
-                        type=str)
+                        type=str,
+                        default="s0.75,b0.25:f0.5,t0.5")
+
+    parser.add_argument("-c", "--channels", help="Plot output channels",
+                        required=False,
+                        type=int,
+                        default=64)
+
+    parser.add_argument("-t", "--tar", help="Enable candidate tarballs",
+                        required=False,
+                        action="store_true")
 
     arguments = parser.parse_args()
 
@@ -106,7 +119,10 @@ def main():
         "num_watchers": arguments.watchers,
         "modules": arguments.modules,
         "model": [chosen_model, chosen_dir],
-        "plots": plots,
+        "plots": {
+            "plots": plots,
+            "out_chans": arguments.channels,
+        }
     }
 
     pipeline = Pipeline(configuration)
