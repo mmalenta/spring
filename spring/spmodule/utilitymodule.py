@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from glob import glob
 from json import load
-from numpy import arange, ceil, float32, floor, frombuffer, fromfile, int32, linspace, log10, max as npmax, reshape, sum as npsum, uint8, zeros
+from numpy import arange, ceil, float32, floor, frombuffer, fromfile, int32, linspace, log10, max as npmax, min as npmin, reshape, sum as npsum, uint8, zeros
 from os import mkdir, path, scandir, stat
 from pandas import read_csv
 from struct import unpack
@@ -826,11 +826,14 @@ class PlotModule(UtilityModule):
     dedisp_norm_pos = [0.0, 0.5, 1.0]
     dedisp_norm_label_sr = [sf2_fmt(label) for label in dedisp_norm_pos]
 
-    norm_factor = npmax(dedisp_full[:])
+    # Normalise the 'power' to between 0 and 1
+    dedisp_max = npmax(dedisp_full[:])
+    dedisp_min = npmin(dedisp_full[:])
+    dedisp_range = dedisp_max - dedisp_min
     # That would be some bad stuff happening
-    if norm_factor == 0.0:
-        norm_factor = 1
-    dedisp_full = dedisp_full / norm_factor
+    if dedisp_range == 0.0:
+        dedisp_range = 1
+    dedisp_full = (dedisp_full - dedisp_min) / dedisp_range
 
     ax_time.plot(dedisp_full[:], linewidth=1.0, color='grey')
     ax_time.set_ylim()
