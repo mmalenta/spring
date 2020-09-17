@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from glob import glob
 from json import load
-from numpy import arange, ceil, float32, floor, fromfile, int32, linspace, log10, max as npmax, reshape, sum as npsum, zeros
+from numpy import arange, ceil, float32, floor, frombuffer, fromfile, int32, linspace, log10, max as npmax, reshape, sum as npsum, uint8, zeros
 from os import mkdir, path, scandir, stat
 from pandas import read_csv
 from struct import unpack
@@ -882,6 +882,7 @@ class ArchiveModule(UtilityModule):
 
       cand_group = h5f.create_group("/cand")
       detection_group = cand_group.create_group("detection")
+      plot_group = detection_group.create_group("plot")
       ml_group = cand_group.create_group("ml")
 
       detection_group.attrs["filterbank"] = fil_metadata["fil_file"]
@@ -893,6 +894,17 @@ class ArchiveModule(UtilityModule):
       detection_group.attrs["beam_type"] = beam_metadata["beam_type"]
       detection_group.attrs["ra"] = beam_metadata["beam_ra"]
       detection_group.attrs["dec"] = beam_metadata["beam_dec"]
+
+      plot_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
+                  str(beam_metadata["beam_abs"]) + beam_metadata["beam_type"] + '.jpg'
+
+      plot_group.attrs["plot_name"] = plot_name
+      plot_group.attrs["representation"] = "uint8"      
+
+      with open(path.join(fil_metadata["full_dir"], 'Plots', plot_name), 'rb') as plot_file:
+        binary_plot = plot_file.read()
+        binary_plot_array = frombuffer(binary_plot, dtype=uint8)
+        plot_dataset = plot_group.create_dataset('jpg', data=binary_plot_array, dtype=uint8)
 
       ml_group.attrs["label"] = cand_metadata["label"]
       ml_group.attrs["prob"] = cand_metadata["prob"]
