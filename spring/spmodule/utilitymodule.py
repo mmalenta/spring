@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 
 from glob import glob
 from json import load
-from numpy import arange, ceil, float32, floor, frombuffer, fromfile, int32, linspace, log10, max as npmax, min as npmin, reshape, sum as npsum, uint8, zeros
+from numpy import arange, ceil, float32, floor, frombuffer, fromfile, int32
+from numpy import linspace, log10, max as npmax, mean, min as npmin, newaxis, random
+from numpy import reshape, std, sum as npsum, uint8, zeros
 from os import mkdir, path, scandir, stat
 from pandas import read_csv
 from struct import unpack
@@ -443,7 +445,13 @@ class PlotModule(UtilityModule):
     plot_skip_samples = max(cand_samples_from_start - plot_padding_samples + start_padding_added, 0)
 
     # Create this array ONLY if extra padding is required
-    padded_input_data = zeros((nchans, total_data_samples), dtype=float32)
+
+    data_mean = mean(inputdata, axis=1)
+    data_std = std(inputdata, axis=1)
+
+    padded_input_data = (random.randn(nchans, total_data_samples).astype(float32).T * data_std).T + data_mean[:, newaxis]
+
+    #padded_input_data = zeros((nchans, total_data_samples), dtype=float32)
     padded_input_data[:, zero_padding_samples_start : zero_padding_samples_start + original_data_length] = inputdata
     
     #input_samples = int(2 * plot_padding_samples + full_band_delay_samples + last_band_delay_samples)
@@ -560,36 +568,39 @@ class PlotModule(UtilityModule):
           
           __shared__ float inchunk[32][32];
           
-          int band = blockIdx.y;
-          int band_size = blockDim.y >> 1;
-          // Half of the .y threads read time samples
-          int channel = threadIdx.y & 15;
-          int time_chunk = threadIdx.y >> 4;
-          int lane = threadIdx.x % 32;
-          // Each thread processes two time samples
-          int time = blockIdx.x * blockDim.x * 2 + time_chunk * blockDim.x + threadIdx.x + intra_band_delays[band * band_size + channel];
+          if ((blockIdx.x * blockDim.x + threadIdx.x) < sub_dedisp_samples) {
+            int band = blockIdx.y;
+            // This kernel is used specifically for dedispersing 16 channels per subband
+            int band_size = 16;
+            // Half of the .y threads read time samples
+            int channel = threadIdx.y & 15;
+            int time_chunk = threadIdx.y >> 4;
+            int lane = threadIdx.x % 32;
+            // Each thread processes two time samples
+            int time = blockIdx.x * blockDim.x * 2 + time_chunk * blockDim.x + threadIdx.x + intra_band_delays[band * band_size + channel];
 
-          int skip_band = band * band_size * input_samples;
-          int skip_channel = channel * input_samples;
-          // Quick and dirty transpose and dedispersion of the data
-          inchunk[(threadIdx.x >> 1) + (time_chunk << 4)][((threadIdx.x & 1) << 4) + channel] = indata[skip_band + skip_channel + time];
-          __syncthreads();
+            int skip_band = band * band_size * input_samples;
+            int skip_channel = channel * input_samples;
+            // Quick and dirty transpose and dedispersion of the data
+            inchunk[(threadIdx.x >> 1) + (time_chunk << 4)][((threadIdx.x & 1) << 4) + channel] = indata[skip_band + skip_channel + time];
+            __syncthreads();
 
-          float val = inchunk[threadIdx.y][threadIdx.x];
-          // Make sure each thread in a warp has a separate channel
-          for (int offset = 1; offset < 16; offset *= 2) {
-              val += __shfl_down_sync(0xFFFFFFFF, val, offset);
-          }
+            float val = inchunk[threadIdx.y][threadIdx.x];
+            // Make sure each thread in a warp has a separate channel
+            for (int offset = 1; offset < 16; offset *= 2) {
+                val += __shfl_down_sync(0xFFFFFFFF, val, offset);
+            }
 
-          __syncwarp();
+            __syncwarp();
 
-          int out_skip_band = sub_dedisp_samples * band;
-          int out_skip_time = blockIdx.x * blockDim.x * 2 + threadIdx.y * 2;
+            int out_skip_band = sub_dedisp_samples * band;
+            int out_skip_time = blockIdx.x * blockDim.x * 2 + threadIdx.y * 2;
 
-          if(lane == 0) {
-              outdata[out_skip_band + out_skip_time + 0] = val;
-          } else if (lane == 16) {
-              outdata[out_skip_band + out_skip_time + 1] = val;
+            if(lane == 0) {
+                outdata[out_skip_band + out_skip_time + 0] = val;
+            } else if (lane == 16) {
+                outdata[out_skip_band + out_skip_time + 1] = val;
+            }
           }
       }
 
@@ -674,6 +685,11 @@ class PlotModule(UtilityModule):
     block_x = int(sub_dedisp_samples_gpu / thread_x)
     block_y = self._out_bands
 
+    print("Block decomposition:")
+    print(sub_dedisp_samples_gpu)
+    print(thread_x)
+    print(block_x)
+
     dedisp_start = perf_counter()
     gpu_input = cp.asarray(use_data)
 
@@ -688,7 +704,7 @@ class PlotModule(UtilityModule):
     sub_kernel_start = perf_counter()
     if (freq_avg == 16):
       # We divide time sampels in .y direction as well
-      block_x = int(block_x / 2)
+      block_x = int(ceil(block_x / 2))
       SubDedispGPUHalf((block_x, block_y), (thread_x, thread_y), (gpu_input, gpu_output, gpu_intra_band_delays, input_samples, sub_dedisp_samples_gpu, self._out_bands))
     else: 
       SubDedispGPUWarp((block_x, block_y), (thread_x, thread_y), (gpu_input, gpu_output, gpu_intra_band_delays, input_samples, sub_dedisp_samples_gpu, freq_avg))
@@ -724,6 +740,9 @@ class PlotModule(UtilityModule):
     logger.debug(f"Kernels took {(kernels_end - kernels_start):.4}s")
     logger.debug(f"Sub kernel took {(sub_kernel_end - sub_kernel_start):.4}s")
     logger.debug(f"Full kernel took {(full_kernel_end - full_kernel_end):.4}s")
+
+    print(dedisp_sub)
+    print(dedisp_not_sum)
 
     prep_start = perf_counter()
 
