@@ -505,13 +505,10 @@ class FrbidModule(ComputeModule):
 
     logger.info(f"Label {label} with probability of {prob}")
 
-    if label > 0.0:
 
-      self._data._metadata["cand_metadata"]["label"] = 1.0
-      self._data._metadata["cand_metadata"]["prob"] = prob
-
-
-      await self._out_queue.put(self._data)
+    self._data._metadata["cand_metadata"]["label"] = label
+    self._data._metadata["cand_metadata"]["prob"] = prob
+    await self._out_queue.put(self._data)
 
     logger.debug(f"Prediction took {pred_end - pred_start:.4}s")
     logger.debug("FRBID module finished processing")
