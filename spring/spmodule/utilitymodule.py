@@ -261,8 +261,12 @@ class WatchModule(UtilityModule):
 
                   fil_data = fromfile(file_path, dtype='B')[self._fil_header_size:]
 
+                  # We can have a filterbank file being written when
+                  # the pipeline is stopped
+                  time_samples = int(ceil(time_samples / header["nchans"]))
+
                   cand_dict = {
-                    "data": reshape(fil_data, (-1, header["nchans"])).T,
+                    "data": reshape(fil_data, (time_samples, header["nchans"])).T,
                     "fil_metadata": header,
                     "cand_metadata": {},
                     "beam_metadata": ibeam,
