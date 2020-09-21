@@ -263,7 +263,7 @@ class WatchModule(UtilityModule):
 
                   # We can have a filterbank file being written when
                   # the pipeline is stopped
-                  time_samples = int(ceil(fil_data.size / header["nchans"]))
+                  time_samples = int(floor(fil_data.size / header["nchans"]))
 
                   cand_dict = {
                     "data": reshape(fil_data[:(time_samples * header["nchans"])],
