@@ -266,7 +266,8 @@ class WatchModule(UtilityModule):
                   time_samples = int(ceil(fil_data.size / header["nchans"]))
 
                   cand_dict = {
-                    "data": reshape(fil_data, (time_samples, header["nchans"])).T,
+                    "data": reshape(fil_data[:(time_samples * header["nchans"])],
+                                    (time_samples, header["nchans"])).T,
                     "fil_metadata": header,
                     "cand_metadata": {},
                     "beam_metadata": ibeam,
@@ -919,8 +920,11 @@ class ArchiveModule(UtilityModule):
     with h5.File(path.join(fil_metadata["full_dir"], file_name), 'w') as h5f:
 
       cand_group = h5f.create_group("/cand")
+      # /cand/detection
       detection_group = cand_group.create_group("detection")
+      # /cand/detection/plot
       plot_group = detection_group.create_group("plot")
+      # /cand/ml
       ml_group = cand_group.create_group("ml")
 
       detection_group.attrs["filterbank"] = fil_metadata["fil_file"]
