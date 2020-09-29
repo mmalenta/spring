@@ -13,7 +13,9 @@ from tensorflow import ConfigProto, Session
 from time import perf_counter, sleep
 from typing import Dict
 
-from spmodule.utilitymodule import ArchiveModule, PlotModule, WatchModule
+from spmodule.sputility.watchmodule import WatchModule
+from spmodule.sputility.plotmodule import PlotModule
+from spmodule.sputility.archivemodule import ArchiveModule
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateQueue as CandQueue
 
@@ -64,7 +66,7 @@ class Pipeline:
     logger.debug("Setting up TensorFlow...")
 
     tf_config = ConfigProto()
-    tf_config.gpu_options.per_process_gpu_memory_fraction = 0.25
+    tf_config.gpu_options.per_process_gpu_memory_fraction = 0.25 # pylint: disable=no-member
     set_session(Session(config=tf_config))
     cp.cuda.Device(0).use()
 
