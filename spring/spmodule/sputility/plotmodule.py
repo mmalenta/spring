@@ -2,6 +2,7 @@ import cupy as cp
 import logging
 import matplotlib.gridspec as gs
 import matplotlib.pyplot as plt
+import pkg_resources
 
 from numpy import arange, ceil, float32, floor, int32, linspace, log10, max as npmax, mean, min as npmin, newaxis, random, reshape, std, sum as npsum, zeros
 from os import mkdir, path
@@ -28,6 +29,8 @@ class PlotModule(UtilityModule):
         row[idx] = (x, y / norm)
 
     logger.debug(f"Normalised plots structure: {self._plots}")
+
+    self._version = pkg_resources.require("spring")[0].version
 
   def _pad_data(self, inputdata, fil_mjd,
                 cand_dm, cand_mjd,
@@ -425,8 +428,7 @@ class PlotModule(UtilityModule):
     ax_spectrum.set_yticks(avg_freq_pos)
     ax_spectrum.set_yticklabels(avg_freq_label_str, fontsize=8)        
 
-    
-    sub_spectrum = npsum(dedisp_sub, axis=1)
+    sub_spectrum = npsum(dedisp_sub, axis=1) / dedisp_sub.shape[1]
     ax_band.plot(sub_spectrum, arange(sub_spectrum.shape[0]), color='black', linewidth=0.75) # pylint: disable=unsubscriptable-object
     ax_band.invert_yaxis()
     ax_band.yaxis.set_label_position("right")
@@ -488,6 +490,8 @@ class PlotModule(UtilityModule):
     ax_time.set_yticks(dedisp_norm_pos)
     ax_time.set_yticklabels(dedisp_norm_label_sr)
     ax_time.set_ylabel('Norm power', fontsize=8)
+
+    plt.text(0.05, 0.05, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
 
     prep_end = perf_counter()
     logger.debug(f"Preparing the plot took {(prep_end - prep_start):.4}s")
