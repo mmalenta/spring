@@ -50,13 +50,6 @@ class PlotModule(UtilityModule):
     last_band_bottom = last_band_top + avg_fband
     last_band_delay_samples = int(ceil(4.15e+03 * dm * (1.0 / (last_band_bottom * last_band_bottom) - 1.0 / (last_band_top * last_band_top)) * tsamp_scaling))
 
-    print(disp_const)
-    print(cand_samples_from_start)
-    print(full_band_delay_samples)
-    print(plot_padding_samples)
-    print(last_band_delay_samples)
-    print(original_data_length)
-
     zero_padding_samples_start = 0
     zero_padding_samples_end = 0
     plot_skip_samples = 0
@@ -167,10 +160,6 @@ class PlotModule(UtilityModule):
     cpu_intra_band_delays = zeros((nchans, ), dtype=int32)
     # For final dedispersion - dispersion delays BETWEEN the bands
     cpu_inter_band_delays = zeros((self._out_bands,), dtype=int32)
-    # Delay values for a line in the plot
-    # This will become conditional - unnecessary if the uses chooses
-    # not to plot the subband dedispersed data
-    line_delays = zeros(self._out_bands, dtype=int32)
     
     # Common values that we better not recalculate
     ftop_part = 1.0 / (ftop * ftop)
@@ -186,17 +175,16 @@ class PlotModule(UtilityModule):
         full_chan = iband * freq_avg + ichan
         chanfreq = bandtop + ichan * fband
         cpu_intra_band_delays[full_chan] =  int(round(scaling * (1.0 / (chanfreq * chanfreq) - 1.0 / (bandtop * bandtop))))
-        line_delays[iband] = int(round(scaling *  (1.0 / (chanfreq * chanfreq) - ftop_part)) + offset)
 
       centre_band = ftop + iband * avg_fband
       cpu_inter_band_delays[int(iband)] =  int(round(scaling * (1.0 / (centre_band * centre_band) - ftop_part)))
 
+    # Delay values for a line in the plot
+    line_delays = cpu_inter_band_delays + offset
+
     thread_y = 32
     thread_x = 32
     # Pad the data
-
-    print(data._data)
-
     use_data, input_samples, full_dedisp_samples_orig, \
       full_dedisp_samples_gpu, sub_dedisp_samples_orig, \
       sub_dedisp_samples_gpu, skip_samples = \
@@ -204,8 +192,6 @@ class PlotModule(UtilityModule):
                       cand_metadata['dm'], cand_metadata['mjd'], 
                       ftop, avg_fband, nchans, self._out_bands,
                       disp_const, plot_pad_s, tsamp_scaling, thread_x, thread_y)
-
-    print(use_data)
 
     SubDedispGPUHalf = cp.RawKernel(r'''
       // This version of the kernel assumes we use 16 channels per dedispersed subband 
@@ -332,11 +318,6 @@ class PlotModule(UtilityModule):
 
     block_x = int(sub_dedisp_samples_gpu / thread_x)
     block_y = self._out_bands
-
-    print("Block decomposition:")
-    print(sub_dedisp_samples_gpu)
-    print(thread_x)
-    print(block_x)
 
     dedisp_start = perf_counter()
     gpu_input = cp.asarray(use_data)

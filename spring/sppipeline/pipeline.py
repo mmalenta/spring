@@ -157,8 +157,6 @@ class Pipeline:
 
         cand_data = await final_queue.get()
         logger.debug(cand_data._metadata)
-        logger.debug(cand_data._data)
-        logger.debug(cand_data._ml_cand)
 
         await self._plot_module.plot(cand_data)
         await self._archive_module.archive(cand_data)
