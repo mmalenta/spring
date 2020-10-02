@@ -492,6 +492,7 @@ class PlotModule(UtilityModule):
     ax_time.set_ylabel('Norm power', fontsize=8)
 
     plt.text(0.05, 0.05, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
+    plt.text(0.20, 0.05, "I Z", weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
 
     prep_end = perf_counter()
     logger.debug(f"Preparing the plot took {(prep_end - prep_start):.4}s")
