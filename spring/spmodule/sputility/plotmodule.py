@@ -34,7 +34,7 @@ class PlotModule(UtilityModule):
 
   def _pad_data(self, inputdata, fil_mjd,
                 cand_dm, cand_mjd,
-                ftop, avg_fband, nchans, outbands,
+                ftop, fband, avg_fband, nchans, outbands,
                 disp_const, plot_pad_s, tsamp_scaling, thread_x, thread_y):
     # Every part of the plot has to be an integer multiple of threadblock in the time dimension
     # This ensures we can have an integer number of threadblocks in the time dimension
@@ -48,9 +48,8 @@ class PlotModule(UtilityModule):
     # Dispersive delay in samples - make sure tsamp is expressed in seconds so that units agree
     full_band_delay_samples = int(ceil(full_band_delay_seconds * tsamp_scaling))
 
-    # That should currently be equal to thread_y
-    last_band_top = ftop + (outbands - 1) * avg_fband
-    last_band_bottom = last_band_top + avg_fband
+    last_band_bottom = ftop + (nchans - 1) * fband
+    last_band_top = last_band_bottom - (nchans / outbands - 1) * fband
     last_band_delay_samples = int(ceil(4.15e+03 * dm * (1.0 / (last_band_bottom * last_band_bottom) - 1.0 / (last_band_top * last_band_top)) * tsamp_scaling))
 
     zero_padding_samples_start = 0
@@ -193,7 +192,7 @@ class PlotModule(UtilityModule):
       sub_dedisp_samples_gpu, skip_samples = \
       self._pad_data(data._data, fil_metadata["mjd"],
                       cand_metadata['dm'], cand_metadata['mjd'], 
-                      ftop, avg_fband, nchans, self._out_bands,
+                      ftop, fband, avg_fband, nchans, self._out_bands,
                       disp_const, plot_pad_s, tsamp_scaling, thread_x, thread_y)
 
     SubDedispGPUHalf = cp.RawKernel(r'''
@@ -225,7 +224,7 @@ class PlotModule(UtilityModule):
             float val = inchunk[threadIdx.y][threadIdx.x];
             // Make sure each thread in a warp has a separate channel
             for (int offset = 1; offset < 16; offset *= 2) {
-                val += __shfl_down_sync(0xFFFFFFFF, val, offset);
+              val += __shfl_down_sync(0xFFFFFFFF, val, offset);
             }
 
             __syncwarp();
@@ -234,9 +233,9 @@ class PlotModule(UtilityModule):
             int out_skip_time = blockIdx.x * blockDim.x * 2 + threadIdx.y * 2;
 
             if(lane == 0) {
-                outdata[out_skip_band + out_skip_time + 0] = val;
+              outdata[out_skip_band + out_skip_time + 0] = val;
             } else if (lane == 16) {
-                outdata[out_skip_band + out_skip_time + 1] = val;
+              outdata[out_skip_band + out_skip_time + 1] = val;
             }
           }
       }
@@ -346,6 +345,7 @@ class PlotModule(UtilityModule):
 
     thread_y = self._out_bands
     thread_x = int(1024 / thread_y)
+
     block_x = int(full_dedisp_samples_gpu / thread_x)
     block_y = 1
 
@@ -431,13 +431,15 @@ class PlotModule(UtilityModule):
     sub_spectrum = npsum(dedisp_sub, axis=1) / dedisp_sub.shape[1]
     ax_band.plot(sub_spectrum, arange(sub_spectrum.shape[0]), color='black', linewidth=0.75) # pylint: disable=unsubscriptable-object
     ax_band.invert_yaxis()
+    ax_band.set_xticks([npmin(sub_spectrum), mean(sub_spectrum), npmax(sub_spectrum)])
+    ax_band.set_xticklabels(["{:.2f}".format(label) for label in [npmin(sub_spectrum), mean(sub_spectrum), npmax(sub_spectrum)]], fontsize=8)
     ax_band.yaxis.set_label_position("right")
     ax_band.yaxis.tick_right()
     ax_band.set_title('Bandpass', fontsize=8)
     ax_band.set_yticks(avg_freq_pos)
     ax_band.set_yticklabels(avg_freq_label_str, fontsize=8)
 
-    dedisp_time_pos = linspace(0, dedisp_full.shape[0], num=5)
+    dedisp_time_pos = linspace(0, dedisp_full.shape[0] - 1, num=5)
     dedisp_time_label = dedisp_time_pos * tsamp + plot_pad_s + (cand_metadata["mjd"] - fil_metadata["mjd"]) * 86400.0
     dedisp_time_label = dedisp_time_pos * tsamp + skip_samples * tsamp + ((cand_metadata["mjd"] - fil_metadata["mjd"]) * 86400 - plot_pad_s)        
 
@@ -483,12 +485,13 @@ class PlotModule(UtilityModule):
     dedisp_full = (dedisp_full - dedisp_min) / dedisp_range
 
     ax_time.plot(dedisp_full[:], linewidth=1.0, color='grey')
-    ax_time.set_ylim()
+    ax_time.set_xlim([min(dedisp_time_label), max(dedisp_time_label)])
+    ax_time.set_ylim([0.0, 1.0])
     ax_time.set_xticks(dedisp_time_pos)
-    ax_time.set_xticklabels(dedisp_time_label_str)
+    ax_time.set_xticklabels(dedisp_time_label_str, fontsize=8)
     ax_time.set_xlabel('Time [' + time_unit + ']', fontsize=8)
     ax_time.set_yticks(dedisp_norm_pos)
-    ax_time.set_yticklabels(dedisp_norm_label_sr)
+    ax_time.set_yticklabels(dedisp_norm_label_sr, fontsize=8)
     ax_time.set_ylabel('Norm power', fontsize=8)
 
     plt.text(0.05, 0.05, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
