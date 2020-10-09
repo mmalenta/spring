@@ -383,10 +383,17 @@ class PlotModule(UtilityModule):
     avg_freq_label_str = [sf2_fmt(label) for label in avg_freq_label]
 
     # Prepare the time ticks
-    avg_time_pos = linspace(0, dedisp_sub.shape[1], num=5)
+    avg_time_pos = linspace(0, dedisp_sub.shape[1] - 1, num=5)
     avg_time_label = avg_time_pos * tsamp + skip_samples * tsamp + \
       ((cand_metadata["mjd"] - fil_metadata["mjd"]) * 86400 - plot_pad_s)
     avg_time_label_str = [sf2_fmt(label) for label in avg_time_label]
+
+    avg_time_pos_orig = linspace(skip_samples, dedisp_sub.shape[1] - 1, num=5)
+
+    avg_time_label_orig = (avg_time_pos_orig - skip_samples) * tsamp + \
+                          ((cand_metadata["mjd"] - fil_metadata["mjd"]) * 86400
+                          - plot_pad_s) + skip_samples * tsamp
+    avg_time_label_orig_str = [sf2_fmt(abs(label)) for label in avg_time_label_orig]
 
     cmap = 'binary'
 
@@ -423,10 +430,14 @@ class PlotModule(UtilityModule):
     ax_spectrum.set_title(header, fontsize=9)
     ax_spectrum.set_xlabel('Time [s]', fontsize=8)
     ax_spectrum.set_ylabel('Freq [MHz]', fontsize=8)
-    ax_spectrum.set_xticks(avg_time_pos)
-    ax_spectrum.set_xticklabels(avg_time_label_str, fontsize=8)
+    ax_spectrum.set_xticks(avg_time_pos_orig)
+    ax_spectrum.set_xticklabels(avg_time_label_orig_str, fontsize=8)
     ax_spectrum.set_yticks(avg_freq_pos)
     ax_spectrum.set_yticklabels(avg_freq_label_str, fontsize=8)        
+
+    ax_spectrum_orig = ax_spectrum.twiny()
+    ax_spectrum_orig.set_xticks(avg_time_pos)
+    ax_spectrum_orig.set_xticklabels(avg_time_label_str, fontsize=8)
 
     sub_spectrum = npsum(dedisp_sub, axis=1) / dedisp_sub.shape[1]
     ax_band.plot(sub_spectrum, arange(sub_spectrum.shape[0]), color='black', linewidth=0.75) # pylint: disable=unsubscriptable-object
@@ -440,8 +451,13 @@ class PlotModule(UtilityModule):
     ax_band.set_yticklabels(avg_freq_label_str, fontsize=8)
 
     dedisp_time_pos = linspace(0, dedisp_full.shape[0] - 1, num=5)
-    dedisp_time_label = dedisp_time_pos * tsamp + plot_pad_s + (cand_metadata["mjd"] - fil_metadata["mjd"]) * 86400.0
     dedisp_time_label = dedisp_time_pos * tsamp + skip_samples * tsamp + ((cand_metadata["mjd"] - fil_metadata["mjd"]) * 86400 - plot_pad_s)        
+
+    dedisp_time_pos_orig = linspace(skip_samples, dedisp_full.shape[0] - 1,
+                                    num=5)
+    dedisp_time_label_orig = (dedisp_time_pos_orig - skip_samples) * tsamp \
+                            + ((cand_metadata["mjd"] - fil_metadata["mjd"])
+                            * 86400 - plot_pad_s) + skip_samples * tsamp
 
     diff = dedisp_time_label[1] - dedisp_time_label[0]
     time_fmt = lambda x: "{:.{dec}f}".format(x, dec=total_decimals)
@@ -463,14 +479,19 @@ class PlotModule(UtilityModule):
       total_decimals = total_decimals + shift_decimals
 
     dedisp_time_label_str = [time_fmt(label) for label in dedisp_time_label]
+    dedisp_time_label_orig_str = [time_fmt(label) for label in dedisp_time_label_orig]
 
     ax_dedisp.imshow(dedisp_not_sum, interpolation='none', aspect='auto', cmap=cmap)
-    ax_dedisp.set_xticks(dedisp_time_pos)
-    ax_dedisp.set_xticklabels(dedisp_time_label_str, fontsize=8)
+    ax_dedisp.set_xticks(dedisp_time_pos_orig)
+    ax_dedisp.set_xticklabels(dedisp_time_label_orig_str, fontsize=8)
     ax_dedisp.set_xlabel('Time [' + time_unit + ']', fontsize=8)
     ax_dedisp.set_yticks(avg_freq_pos)
     ax_dedisp.set_ylabel('Freq [MHz]', fontsize=8)
     ax_dedisp.set_yticklabels(avg_freq_label_str, fontsize=8)
+
+    ax_dedisp_orig = ax_dedisp.twiny()
+    ax_dedisp_orig.set_xticks(dedisp_time_pos)
+    ax_dedisp_orig.set_xticklabels(dedisp_time_label_str, fontsize=8)
 
     dedisp_norm_pos = [0.0, 0.5, 1.0]
     dedisp_norm_label_sr = [sf2_fmt(label) for label in dedisp_norm_pos]
@@ -487,12 +508,28 @@ class PlotModule(UtilityModule):
     ax_time.plot(dedisp_full[:], linewidth=1.0, color='grey')
     ax_time.set_xlim([min(dedisp_time_label), max(dedisp_time_label)])
     ax_time.set_ylim([0.0, 1.0])
-    ax_time.set_xticks(dedisp_time_pos)
-    ax_time.set_xticklabels(dedisp_time_label_str, fontsize=8)
+    ax_time.set_xticks(dedisp_time_pos_orig)
+    ax_time.set_xticklabels(dedisp_time_label_orig_str, fontsize=8)
     ax_time.set_xlabel('Time [' + time_unit + ']', fontsize=8)
     ax_time.set_yticks(dedisp_norm_pos)
     ax_time.set_yticklabels(dedisp_norm_label_sr, fontsize=8)
     ax_time.set_ylabel('Norm power', fontsize=8)
+
+
+    """
+    Keep the pulse limits out for now - things do not align properly
+
+    centre = int(round(dedisp_full.shape[0] / 2))
+    half_width = int(round(cand_metadata["width"] * 1e-03 / 2 / tsamp))
+    ax_time.axvline(centre, color='grey', linewidth=1.0)
+    ax_time.axvline(centre + half_width, color='grey', linewidth=1.0, linestyle="--")
+    ax_time.axvline(centre - half_width, color='grey', linewidth=1.0, linestyle="--")
+    """
+
+    ax_time_orig = ax_time.twiny()
+    ax_time_orig.set_xticks(dedisp_time_pos)
+    ax_time_orig.set_xticklabels(dedisp_time_label_str, fontsize=8)
+    
 
     plt.text(0.05, 0.05, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
     plt.text(0.20, 0.05, "I Z", weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
