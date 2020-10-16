@@ -21,6 +21,7 @@ class PlotModule(UtilityModule):
 
     self._plots = config["plots"]
     self._out_bands = config["out_chans"]
+    self._modules = config["modules"]
 
     # Normalise, just in case values do not add up to 1.0
     for row in self._plots:
@@ -532,7 +533,7 @@ class PlotModule(UtilityModule):
     
 
     plt.text(0.05, 0.05, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
-    plt.text(0.20, 0.05, "I Z", weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
+    plt.text(0.20, 0.05, " ".join(self._modules), weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
 
     prep_end = perf_counter()
     logger.debug(f"Preparing the plot took {(prep_end - prep_start):.4}s")

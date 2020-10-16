@@ -114,6 +114,8 @@ def main():
     plots = [ [(cell[0], float(cell[1:])) for cell in row.split(",")]
                 for row in arguments.plots.split(":") ]
 
+    modules = [module[0].upper() for module in arguments.modules]
+
     configuration = {
         "base_directory": arguments.directory,
         "num_watchers": arguments.watchers,
@@ -122,6 +124,7 @@ def main():
         "plots": {
             "plots": plots,
             "out_chans": arguments.channels,
+            "modules": modules,
         }
     }
 
