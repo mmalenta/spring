@@ -126,7 +126,7 @@ class MaskModule(ComputeModule):
     if (metadata["multiply"] == False):
       mask = logical_not(mask)
 
-    self._data = self._data * mask[:, newaxis] 
+    self._data._data = self._data._data * mask[:, newaxis] 
     logger.debug("Mask module finished processing")
 
 class ThresholdModule(ComputeModule):

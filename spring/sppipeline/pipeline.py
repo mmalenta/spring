@@ -7,7 +7,7 @@ import signal
 
 from keras.backend.tensorflow_backend import set_session
 from keras.models import model_from_json
-from numpy import array, ones, random
+from numpy import array, float32, ones, random
 from os import path
 from tensorflow import ConfigProto, Session
 from time import perf_counter, sleep
@@ -137,6 +137,8 @@ class Pipeline:
         cand_data = await cand_queue.get()
         logger.debug(cand_data._metadata)
         self._module_queue[0].initialise(cand_data)
+
+        metadata["mask"]["mask"] = ones(cand_data._metadata["fil_metadata"]["nchans"]).astype(float32)
 
         for module in self._module_queue:
           await module.process(metadata[(module.__class__.__name__[:-6]).lower()])
