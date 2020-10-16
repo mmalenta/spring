@@ -304,9 +304,9 @@ class CandmakerModule(ComputeModule):
     padding_required_end = int(samples_required - samps_from_end)
     full_samples = padding_required_start + fil_samp + padding_required_end
 
-    logger.debug(f"{padding_required_start} samples "
+    logger.debug(f"{abs(padding_required_start)} samples "
                 + f"{'of padding' if padding_required_start > 0 else 'removed'}"
-                + f" at the start and {padding_required_end} samples "
+                + f" at the start and {abs(padding_required_end)} samples "
                 + f"{'of padding' if padding_required_end > 0 else 'removed'}"
                 + f" at the end for dedispersion")
 
