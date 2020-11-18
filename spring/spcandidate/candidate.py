@@ -4,37 +4,37 @@ from typing import Dict
 
 class Candidate:
 
-    """
-    Candidate class.
+  """
+  Candidate class.
 
-    This encapsulates the data and all the metadata information
-    required to process the candidate.
+  This encapsulates the data and all the metadata information
+  required to process the candidate.
 
-    Attributes:
+  Attributes:
+    _data : Array
+      Data from the saved filterbank file
 
-        _data : Array
-            Data from the saved filterbank file
+    _metadata : Dict
+      Metadata required to process the candidates. Contains
+      information on both the filterbank file (e.g. nchans, tsamp)
+      and the candidate (e.g. DM, MJD)
 
-        _metadata : Dict
-            Metadata required to process the candidates. Contains
-            information on both the filterbank file (e.g. nchans, tsamp)
-            and the candidate (e.g. DM, MJD)
+  """
 
-    """
+  def __init__(self, cand: Dict) -> None:
 
-    def __init__(self, cand: Dict) -> None:
-
-        self._mean = empty(0)
-        self._stdev = empty(0)
-        # Need to rename it to something more meaningful
-        self._data = cand["data"]
-        self._ml_cand = {
-            "dmt": empty(0),
-            "dedisp": empty(0),
-        }
-        self._metadata = {
-            "fil_metadata": cand["fil_metadata"],
-            "cand_metadata": cand["cand_metadata"],
-            "beam_metadata": cand["beam_metadata"],
-        }
-        self._time_added = cand["time"]
+    self._mean = empty(0)
+    self._stdev = empty(0)
+    # Need to rename it to something more meaningful
+    self._data = cand["data"]
+    self._ml_cand = {
+        "dmt": empty(0),
+        "dedisp": empty(0),
+    }
+    self._metadata = {
+        "fil_metadata": cand["fil_metadata"],
+        "cand_metadata": cand["cand_metadata"],
+        "beam_metadata": cand["beam_metadata"],
+    }
+    self._time_added = cand["time"]
+    

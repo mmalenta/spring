@@ -29,14 +29,12 @@ class PlotModule(UtilityModule):
       for idx, (x, y) in enumerate(row):
         row[idx] = (x, y / norm)
 
-    logger.debug(f"Normalised plots structure: {self._plots}")
-
     self._version = pkg_resources.require("spring")[0].version
 
   def _pad_data(self, inputdata, fil_mjd,
                 cand_dm, cand_mjd,
-                ftop, fband, avg_fband, nchans, outbands,
-                disp_const, plot_pad_s, tsamp_scaling, thread_x, thread_y):
+                ftop, fband, nchans, outbands,
+                disp_const, plot_pad_s, tsamp_scaling, thread_x):
     # Every part of the plot has to be an integer multiple of threadblock in the time dimension
     # This ensures we can have an integer number of threadblocks in the time dimension
     dm = cand_dm
@@ -61,18 +59,18 @@ class PlotModule(UtilityModule):
     # We don't have enough samples to cover padding at the start
     #if ((cand_mjd - plot_padding_mjd) < fil_mjd):
     if (cand_samples_from_start < plot_padding_samples):
-        # Difference in samples (plot padding is now a multiple of the threadblock time dimension, so extra data padding takes this into account)
-        #zero_padding_samples_start = plot_padding_samples - int(np.floor((cand_mjd - fil_mjd) * 86400.0 * self._tsamp_scaling))
-        zero_padding_samples_start = plot_padding_samples - cand_samples_from_start
-        start_padding_added = zero_padding_samples_start
-        logger.debug("Not enough data at the start. "
-                      + f"Padding with {zero_padding_samples_start} samples")
+      # Difference in samples (plot padding is now a multiple of the threadblock time dimension, so extra data padding takes this into account)
+      #zero_padding_samples_start = plot_padding_samples - int(np.floor((cand_mjd - fil_mjd) * 86400.0 * self._tsamp_scaling))
+      zero_padding_samples_start = plot_padding_samples - cand_samples_from_start
+      start_padding_added = zero_padding_samples_start
+      logger.debug("Not enough data at the start. Padding with %d samples",
+                   zero_padding_samples_start)
 
     # We don't have enough samples to cover the dispersive delay and padding at the end
     if (cand_samples_from_start + full_band_delay_samples + plot_padding_samples + last_band_delay_samples > original_data_length):
-        zero_padding_samples_end = int(cand_samples_from_start + full_band_delay_samples + plot_padding_samples + last_band_delay_samples - original_data_length)
-        logger.debug("Not enough data at the end. "
-                      + f"Padding with {zero_padding_samples_end} samples")
+      zero_padding_samples_end = int(cand_samples_from_start + full_band_delay_samples + plot_padding_samples + last_band_delay_samples - original_data_length)
+      logger.debug("Not enough data at the end. Padding with %d samples",
+                   zero_padding_samples_end)
 
     # Need to make sure that the output is a multiple of 32 in the time dimension
     # !!!! THIS PART NEEDS EXTRA REVIEW OF THE WARP SAFETY PADDING !!!!
@@ -107,23 +105,24 @@ class PlotModule(UtilityModule):
     use_data = padded_input_data[:, plot_skip_samples : plot_skip_samples + input_samples]
 
     logger.debug("Candidate padding information:")
-    logger.debug(f"\tInput data length (original): {original_data_length}")
-    logger.debug(f"\tInput data length (padded): {input_samples}")
-    logger.debug("\tOutput plot samples: "
-                  + f"{output_samples_sub_dedisp_orig} (subband), "
-                  + f"{output_samples_full_dedisp_orig} (full)")
-    logger.debug("\tWarp safe output plot samples: "
-                  + f"{output_samples_sub_dedisp_warp_safe} (subband), "
-                  + f"{output_samples_full_dedisp_warp_safe} (full)")
-    logger.debug(f"\tDM: {dm:.2}")
-    logger.debug(f"\tDM sweep seconds: {full_band_delay_seconds:.6f}")
-    logger.debug(f"\tDM sweep samples: {full_band_delay_samples}")
-    logger.debug(f"\tDelay across the last band: {last_band_delay_samples}")
-    logger.debug(f"\tCandidate samples from the start: {cand_samples_from_start}")
-    logger.debug(f"\tPadding at the start: {zero_padding_samples_start}")
-    logger.debug(f"\tPadding at the end: {zero_padding_samples_end}")
-    logger.debug(f"\tSamples skipped at the start: {plot_skip_samples}")
-    logger.debug(f"\tWarp-safety padding: {warp_safety_samples}")
+    logger.debug("\tInput data length (original): %d", original_data_length)
+    logger.debug("\tInput data length (padded): %d", input_samples)
+    logger.debug("\tOutput plot samples: %d (subband), %d (full)",
+                 output_samples_sub_dedisp_orig,
+                 output_samples_full_dedisp_orig)
+    logger.debug("\tWarp safe output plot samples: %d (subband), %d (full)",
+                 output_samples_sub_dedisp_warp_safe,
+                 output_samples_full_dedisp_warp_safe)
+    logger.debug("\tDM: %.2f", dm)
+    logger.debug("\tDM sweep seconds: %.6f", full_band_delay_seconds)
+    logger.debug("\tDM sweep samples: %d", full_band_delay_samples)
+    logger.debug("\tDelay across the last band: %d", last_band_delay_samples)
+    logger.debug("\tCandidate samples from the start: %d",
+                 cand_samples_from_start)
+    logger.debug("\tPadding at the start: %d", zero_padding_samples_start)
+    logger.debug("\tPadding at the end: %d", zero_padding_samples_end)
+    logger.debug("\tSamples skipped at the start: %d", plot_skip_samples)
+    logger.debug("\tWarp-safety padding: %d", warp_safety_samples)
 
     return use_data, input_samples, output_samples_full_dedisp_orig, output_samples_full_dedisp_warp_safe, output_samples_sub_dedisp_orig, output_samples_sub_dedisp_warp_safe, start_padding_added
 
@@ -193,8 +192,8 @@ class PlotModule(UtilityModule):
       sub_dedisp_samples_gpu, skip_samples = \
       self._pad_data(data._data, fil_metadata["mjd"],
                       cand_metadata['dm'], cand_metadata['mjd'], 
-                      ftop, fband, avg_fband, nchans, self._out_bands,
-                      disp_const, plot_pad_s, tsamp_scaling, thread_x, thread_y)
+                      ftop, fband, nchans, self._out_bands,
+                      disp_const, plot_pad_s, tsamp_scaling, thread_x)
 
     SubDedispGPUHalf = cp.RawKernel(r'''
       // This version of the kernel assumes we use 16 channels per dedispersed subband 
@@ -325,8 +324,10 @@ class PlotModule(UtilityModule):
     dedisp_start = perf_counter()
     gpu_input = cp.asarray(use_data)
 
-    logger.debug(f"CPU input array shape: {use_data.shape}")
-    logger.debug(f"GPU input array shape: {gpu_input.shape}")
+    logger.debug("CPU input array shape: %d x %d",
+                 use_data.shape[0], use_data.shape[1])
+    logger.debug("GPU input array shape: %d x %d",
+                 gpu_input.shape[0], gpu_input.shape[1])
 
     gpu_output = cp.zeros(sub_dedisp_samples_gpu * self._out_bands + full_dedisp_samples_gpu * self._out_bands + full_dedisp_samples_gpu, dtype=use_data.dtype)
     gpu_intra_band_delays = cp.asarray(cpu_intra_band_delays)
@@ -369,10 +370,10 @@ class PlotModule(UtilityModule):
 
     dedisp_end = perf_counter()
 
-    logger.debug(f"Dedispersion took {(dedisp_end - dedisp_start):.4}s")
-    logger.debug(f"Kernels took {(kernels_end - kernels_start):.4}s")
-    logger.debug(f"Sub kernel took {(sub_kernel_end - sub_kernel_start):.4}s")
-    logger.debug(f"Full kernel took {(full_kernel_end - full_kernel_start):.4}s")
+    logger.debug("Dedispersion took %.4fs", dedisp_end - dedisp_start)
+    logger.debug("Kernels took %.4fs", kernels_end - kernels_start)
+    logger.debug("Sub kernel took %.4fs", sub_kernel_end - sub_kernel_start)
+    logger.debug("Full kernel took %.4fs", full_kernel_end - full_kernel_start)
 
     prep_start = perf_counter()
 
@@ -503,7 +504,7 @@ class PlotModule(UtilityModule):
     dedisp_range = dedisp_max - dedisp_min
     # That would be some bad stuff happening
     if dedisp_range == 0.0:
-        dedisp_range = 1
+      dedisp_range = 1
     dedisp_full = (dedisp_full - dedisp_min) / dedisp_range
 
     ax_time.plot(dedisp_full[:], linewidth=1.0, color='grey')
@@ -536,7 +537,7 @@ class PlotModule(UtilityModule):
     plt.text(0.20, 0.05, " ".join(self._modules), weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
 
     prep_end = perf_counter()
-    logger.debug(f"Preparing the plot took {(prep_end - prep_start):.4}s")
+    logger.debug("Preparing the plot took %.4fs", prep_end - prep_start)
     
     plot_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
                 str(beam_metadata["beam_abs"]) + beam_metadata["beam_type"] + '.jpg'
@@ -555,7 +556,7 @@ class PlotModule(UtilityModule):
     fil_fig.savefig(path.join(fil_metadata["full_dir"], 'Plots', plot_name), transparent=False, backend="agg", bbox_inches = 'tight', quality=85)
     plt.close(fil_fig)
     save_end = perf_counter()
-    logger.debug(f"Saving the plot took {(save_end - save_start):.4}s")
+    logger.debug("Saving the plot took %.4fs", save_end - save_start)
 
     extra_file = path.join(fil_metadata["full_dir"], 'Plots', 'used_candidates.spccl.extra')
 
