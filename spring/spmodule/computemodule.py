@@ -78,7 +78,8 @@ class IqrmModule(ComputeModule):
     logger.debug("IQRM module starting processing")
     iqrm_start = perf_counter()
     scaled, mean, stdev = normalise(self._data._data)
-    mask = iqrm(stdev, maxlag=3)
+    # TODO: Make it properly configurable
+    mask = iqrm(stdev, maxlag=15)
     scaled[mask] = 0
     self._data._data = scaled
     self._data._mean = mean
