@@ -243,7 +243,7 @@ class WatchModule(UtilityModule):
                                         (cands["MJD"] < file_end)]
 
                   if len(matched_cands) == 0:
-                    logger.waring("No candidates found for file %s", file_path)
+                    logger.warning("No candidates found for file %s", file_path)
 
                   fil_data = fromfile(file_path, dtype='B')[self._fil_header_size:]
 
