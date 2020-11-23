@@ -1,8 +1,8 @@
-import h5py as h5
-
-from numpy import frombuffer, uint8
 from os import path
 from typing import Dict
+
+import h5py as h5
+from numpy import frombuffer, uint8
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
@@ -14,9 +14,9 @@ class ArchiveModule(UtilityModule):
 
   async def archive(self, cand: Cand) -> None:
 
-    beam_metadata = cand._metadata["beam_metadata"]
-    cand_metadata = cand._metadata["cand_metadata"]
-    fil_metadata = cand._metadata["fil_metadata"]
+    beam_metadata = cand.metadata["beam_metadata"]
+    cand_metadata = cand.metadata["cand_metadata"]
+    fil_metadata = cand.metadata["fil_metadata"]
 
     fmtdm = "{:.2f}".format(cand_metadata["dm"]) 
     file_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
@@ -57,6 +57,6 @@ class ArchiveModule(UtilityModule):
       ml_group.attrs["prob"] = cand_metadata["prob"]
 
       dm_time_dataset = ml_group.create_dataset("dm_time",
-                                                data=cand._ml_cand["dmt"])
+                                                data=cand.ml_cand["dmt"])
       freq_time_dataset = ml_group.create_dataset("freq_time",
-                                                  data=cand._ml_cand["dedisp"])
+                                                  data=cand.ml_cand["dedisp"])
