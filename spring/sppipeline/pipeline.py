@@ -1,17 +1,16 @@
 import asyncio
-import cupy as cp
-import functools
 import logging
-import signal
 
+from os import path
+from time import perf_counter, sleep
+from typing import Dict
+
+import cupy as cp
 
 from keras.backend.tensorflow_backend import set_session
 from keras.models import model_from_json
-from numpy import array, float32, ones, random
-from os import path
+from numpy import array, float32, ones
 from tensorflow import ConfigProto, Session
-from time import perf_counter, sleep
-from typing import Dict
 
 from spmodule.sputility.watchmodule import WatchModule
 from spmodule.sputility.plotmodule import PlotModule
@@ -60,9 +59,8 @@ class Pipeline:
     self._candidate_queue = CandQueue()
     self._final_queue = CandQueue()
 
-    logger.debug("Created queue with %d modules" %
+    logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
-
     logger.debug("Setting up TensorFlow...")
 
     tf_config = ConfigProto()
@@ -135,21 +133,20 @@ class Pipeline:
         }
 
         cand_data = await cand_queue.get()
-        logger.debug(cand_data._metadata)
         self._module_queue[0].initialise(cand_data)
 
-        metadata["mask"]["mask"] = ones(cand_data._metadata["fil_metadata"]["nchans"]).astype(float32)
+        metadata["mask"]["mask"] = ones(cand_data.metadata["fil_metadata"]["nchans"]).astype(float32)
 
         for module in self._module_queue:
           await module.process(metadata[(module.__class__.__name__[:-6]).lower()])
 
-        logger.debug("Candidate finished processing "
-                      + f"{(perf_counter() - cand_data._time_added):.4}s "
-                      + "after being added to the queue.")
+        logger.debug("Candidate finished processing %.4fs\
+                     after being added to the queue",
+                     perf_counter() - cand_data.time_added)
 
       except asyncio.CancelledError:
-          logger.info("Compute modules quitting")
-          return
+        logger.info("Compute modules quitting")
+        return
 
   async def _finalise(self, final_queue) -> None:
 
@@ -158,14 +155,14 @@ class Pipeline:
       try:
 
         cand_data = await final_queue.get()
-        logger.debug(cand_data._metadata)
+        logger.debug(cand_data.metadata)
 
         await self._plot_module.plot(cand_data)
         await self._archive_module.archive(cand_data)
 
       except asyncio.CancelledError:
-          logger.info("Computing has been finalised")
-          return
+        logger.info("Computing has been finalised")
+        return
 
 
   async def run(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -221,12 +218,6 @@ class Pipeline:
     """
     
     self._pause()
-    
-    """
-    
-    Update code goes here
-
-    """
     
     print("Updating")
     sleep(5)

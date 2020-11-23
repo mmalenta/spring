@@ -1,6 +1,7 @@
 
-from numpy import empty
 from typing import Dict
+
+from numpy import empty
 
 class Candidate:
 
@@ -11,10 +12,10 @@ class Candidate:
   required to process the candidate.
 
   Attributes:
-    _data : Array
+    data : Array
       Data from the saved filterbank file
 
-    _metadata : Dict
+    metadata : Dict
       Metadata required to process the candidates. Contains
       information on both the filterbank file (e.g. nchans, tsamp)
       and the candidate (e.g. DM, MJD)
@@ -23,18 +24,18 @@ class Candidate:
 
   def __init__(self, cand: Dict) -> None:
 
-    self._mean = empty(0)
-    self._stdev = empty(0)
+    self.mean = empty(0)
+    self.stdev = empty(0)
     # Need to rename it to something more meaningful
-    self._data = cand["data"]
-    self._ml_cand = {
+    self.data = cand["data"]
+    self.ml_cand = {
         "dmt": empty(0),
         "dedisp": empty(0),
     }
-    self._metadata = {
+    self.metadata = {
         "fil_metadata": cand["fil_metadata"],
         "cand_metadata": cand["cand_metadata"],
         "beam_metadata": cand["beam_metadata"],
     }
-    self._time_added = cand["time"]
+    self.time_added = cand["time"]
     
