@@ -3,177 +3,174 @@ import spmodule.computemodule as cm
 
 from typing import List
 
-from spmodule.computemodule import IqrmModule
 from spmodule.module import Module
 
 logger = logging.getLogger(__name__)
 
 class ComputeQueue:
 
+  """
+  Queue for pipeline modules.
+
+  Not a queue in the FIFO sense. A wrapper around a list,
+  with additional functionality added.
+
+  Attributes:
+
+      _queue : List[Module]
+          Modules to run for post-processing
+      
+      _required : List[Module]
+          Bare minimum modules that are required for basic
+          functionality
+
+
+  """
+
+  def __init__(self, modules: List[str]):
+
     """
-    Queue for pipeline modules.
+    Constructs the ComputeQueue object.
 
-    Not a queue in the FIFO sense. A wrapper around a list,
-    with additional functionality added.
+    Parameters:
 
-    Attributes:
-
-        _queue : List[Module]
-            Modules to run for post-processing
-        
-        _required : List[Module]
-            Bare minimum modules that are required for basic
-            functionality
-
+        modules : List[str]
+            List of optional modules to add to the module queue
 
     """
 
-    def __init__(self, modules: List[str]):
-        
-        """
-        Constructs the ComputeQueue object.
+    self._required = ["candmaker", "frbid"]
+    self._queue = []
+    self._idx = 0
 
-        Parameters:
+    # Just in case no pre-processing is done
+    if modules is None:
+      modules = self._required
+    else:
+      modules.extend(self._required)
 
-            modules : List[str]
-                List of optional modules to add to the module queue 
+    for module in modules:
+      # Follow the naming convention described in the
+      # ComputeModule class docstring
+      self._queue.append(getattr(cm, module.capitalize() + "Module")())
+      self._queue.sort(key=lambda val: val.id)
 
-        """
+  def __iter__(self):
 
-        self._required = ["candmaker", "frbid"]
-        self._queue = []
-        self._idx = 0
+    """
 
-        # Just in case no pre-processing is done
-        if modules == None:
-            modules = self._required
-        else:
-            modules.extend(self._required)
+    Resets the index of the list.
 
-        for module in modules:
-            # Follow the naming convention described in the
-            # ComputeModule class docstring
-            self._queue.append(getattr(cm, module.capitalize() + "Module")())
-            self._queue.sort(key=lambda val: val.id)
+    If not done here, creating new iteration will start from where
+    the __next__() stopped the last time.
 
-    def __iter__(self):
-        
-        """
+    """
 
-        Resets the index of the list.
+    self._idx = 0
+    return self
 
-        If not done here, creating new iteration will start from where
-        the __next__() stopped the last time.
+  def __next__(self):
 
-        """
+    """
 
-        self._idx = 0
-        return self
+    Get the next module in the module queue.
 
-    def __next__(self):
-
-        """
-
-        Get the next module in the module queue.
-
-        As well as returning the current module to run the processing
-        on, passes the data from the output of the current module to
-        the input of the next module. The exception to this rule are
-        the first and the last modules
-
-            Returns:
-
-                : Module
-                    Current module to be run
-
-            Raises:
-        
-                StopIteration: raised when there are no modules to
-                    return. Required for the proper implementation of
-                    the __next__() method
-
-        """
-
-        if self._idx < len(self._queue):
-
-            if self._idx != 0:
-                logger.debug("Sending the data to the next module...")
-                self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
-
-            self._idx = self._idx + 1
-            return self._queue[self._idx - 1]
-
-        raise StopIteration
-
-    def __contains__(self, item: str) -> bool:
-
-        for module in self._queue:
-
-            if isinstance(module, getattr(cm, item.capitalize() + "Module")):
-                return True
-
-        return False
-
-    def __getitem__(self, idx) -> Module:
-
-        """
-
-        Return the requested module.
-
-        If the index is an integer it simply returns module at that
-        position. If it is a string however, it tries to find the module
-        of this type.
-
-        Parameters:
-
-            idx : int or str
-                Index of the requested module
+    As well as returning the current module to run the processing
+    on, passes the data from the output of the current module to
+    the input of the next module. The exception to this rule are
+    the first and the last modules
 
         Returns:
 
             : Module
-                Requested module
-            
+                Current module to be run
+
         Raises:
 
-            IndexError: raised when the index exceeds the length of the
-            module queue.
+            StopIteration: raised when there are no modules to
+                return. Required for the proper implementation of
+                the __next__() method
 
-        """
-        if isinstance(idx, int):
-            if idx < len(self._queue):
-                return self._queue[idx]
+    """
 
-        if isinstance(idx, str):
+    if self._idx < len(self._queue):
 
-            for module in self._queue:
-                if isinstance(module, getattr(cm, idx.capitalize() + "Module")):
-                    print("Found module " + idx)
-                    return module
+      if self._idx != 0:
+        logger.debug("Sending the data to the next module...")
+        self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
 
-        raise IndexError
+      self._idx = self._idx + 1
+      return self._queue[self._idx - 1]
 
-    def __len__(self) -> int:
+    raise StopIteration
 
-        """
+  def __contains__(self, item: str) -> bool:
 
-        Get the number of modules currently in the queue.
+    for module in self._queue:
+      if isinstance(module, getattr(cm, item.capitalize() + "Module")):
+        return True
 
-        Returns the length of the underlying module list
+    return False
 
-        Returns:
+  def __getitem__(self, idx) -> Module:
 
-            : int 
-            Lenght of the module queue (list)
+    """
 
-        """
+    Return the requested module.
 
-        return len(self._queue)
+    If the index is an integer it simply returns module at that
+    position. If it is a string however, it tries to find the module
+    of this type.
 
-    def add_module(self, module: Module) -> None:
+    Parameters:
 
-        self._queue.append(module)
+        idx : int or str
+            Index of the requested module
 
-    def remove_module(self, module: Module) -> None:
+    Returns:
 
-        self._queue.remove(module)
+        : Module
+            Requested module
+        
+    Raises:
+
+        IndexError: raised when the index exceeds the length of the
+        module queue.
+
+    """
+    if isinstance(idx, int):
+      if idx < len(self._queue):
+        return self._queue[idx]
+
+    if isinstance(idx, str):
+      for module in self._queue:
+        if isinstance(module, getattr(cm, idx.capitalize() + "Module")):
+          print("Found module " + idx)
+          return module
+
+    raise IndexError
+
+  def __len__(self) -> int:
+
+    """
+
+    Get the number of modules currently in the queue.
+
+    Returns the length of the underlying module list
+
+    Returns:
+
+        : int 
+        Lenght of the module queue (list)
+
+    """
+
+    return len(self._queue)
+
+  def add_module(self, module: Module) -> None:
+
+    self._queue.append(module)
+
+  def remove_module(self, module: Module) -> None:
+
+    self._queue.remove(module)
