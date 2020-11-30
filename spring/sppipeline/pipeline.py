@@ -140,6 +140,11 @@ class Pipeline:
         for module in self._module_queue:
           await module.process(metadata[(module.__class__.__name__[:-6]).lower()])
 
+        # Quick hack to enable final processing
+        cand_data = await self._final_queue.get()
+        await self._plot_module.plot(cand_data)
+        await self._archive_module.archive(cand_data)
+
         logger.debug("Candidate finished processing %.4fs\
                      after being added to the queue",
                      perf_counter() - cand_data.time_added)
@@ -179,11 +184,12 @@ class Pipeline:
 
     watcher = loop.create_task(self._watch_module.watch(self._candidate_queue))
     computer = loop.create_task(self._process(self._candidate_queue))
-    finaliser = loop.create_task(self._finalise(self._final_queue))
+    #finaliser = loop.create_task(self._finalise(self._final_queue))
     listener = loop.create_task(asyncio.start_server(self._listen,
                                 "127.0.0.1", 9999))
 
-    await asyncio.gather(listener, watcher, computer, finaliser)
+    #await asyncio.gather(listener, watcher, computer, finaliser)
+    await asyncio.gather(listener, watcher, computer)
 
     logger.info("Finishing the processing...")
     loop.stop()
