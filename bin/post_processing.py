@@ -10,6 +10,7 @@ from functools import partial
 from os import path
 
 from sppipeline.pipeline import Pipeline
+from sputils.resource_manager import manager
 
 logger = logging.getLogger()
 
@@ -55,6 +56,12 @@ def main():
                       type=str,
                       choices=["iqrm", "zerodm", "threshold", "mask",
                                "multibeam", "plot", "archive"])
+
+  parser.add_argument("-f", "--gpu-fraction",
+                      help="Fraction of GPU memory to use",
+                      required=False,
+                      type=float,
+                      default=0.1)
 
   parser.add_argument("--model", help="Model name and model directory",
                       required=True,
@@ -129,16 +136,20 @@ def main():
       }
   }
 
+  logger.info(manager._gpu_props)
+  logger.info(manager._host_props)
+
   pipeline = Pipeline(configuration)
   loop = asyncio.get_event_loop()
   # Handle CTRL + C
   loop.add_signal_handler(getattr(signal, 'SIGINT'),
-                          partial(pipeline.stop, loop))    
+                          partial(pipeline.stop, loop))
   loop.create_task(pipeline.run(loop))
 
   try:
     loop.run_forever()
     logger.info("Pipeline finished processing")
+    manager.join()
   finally:
     loop.close()
     logger.info("Processing closed successfully")

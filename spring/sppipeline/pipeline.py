@@ -193,8 +193,8 @@ class Pipeline:
     Completely stops and cleans the pipeline.
 
     This method should be used only when the processing script is
-    to be quit completely, i.e. after an exception that cannot be 
-    recovered from occurs or a SIGKILL is caught.
+    to be quit completely, i.e. after an exception that cannot be
+    recovered from occurs or a SIGINT is caught.
     """
     
     logger.info("Stopping the pipeline")
@@ -204,8 +204,11 @@ class Pipeline:
 
     tasks = asyncio.Task.all_tasks()
     for t in tasks:
+      # Can't cancel the main coroutine
       if t._coro.__name__ != "run":
         print(t._coro.__name__)
+        # That will not return True - we are catching CancelledError
+        # exceptions in coroutines
         t.cancel()
 
   def _update(self) -> None:

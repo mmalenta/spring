@@ -1,7 +1,8 @@
 import logging
-import spmodule.computemodule as cm
 
 from typing import List
+
+import spmodule.computemodule as cm
 
 from spmodule.module import Module
 
@@ -131,7 +132,7 @@ class ComputeQueue:
 
         : Module
             Requested module
-        
+
     Raises:
 
         IndexError: raised when the index exceeds the length of the
@@ -160,7 +161,7 @@ class ComputeQueue:
 
     Returns:
 
-        : int 
+        : int
         Lenght of the module queue (list)
 
     """
