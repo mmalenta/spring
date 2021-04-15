@@ -1,4 +1,5 @@
 import logging
+import pika
 
 from math import ceil
 from time import perf_counter
@@ -6,6 +7,7 @@ from typing import Dict
 
 import cupy as cp
 
+from json import dumps
 from numpy import append, array, clip, linspace, logical_not, mean, median
 from numpy import newaxis, random, std
 
@@ -439,14 +441,46 @@ class CandmakerModule(ComputeModule):
 
 class FrbidModule(ComputeModule):
 
+  """
+  Class responsible for running the ML classifier
+
+  Runs the FRBID classifier on every candidate sent to it.
+  Currently runs every candidate individually, without any input
+  batching, which hurts the performance.
+
+  Arguments:
+
+    None
+
+  Attributes:
+
+    id: int
+      Module ID
+    
+    _model: Keras model
+      Preloaded Keras model including weights
+
+    _out_queue: CandQueue
+      Queue for sending candidates to archiving.
+
+    _connection: BlockingConnection
+      Connection for sending messages to the broker
+
+    _channel: BlockingChannel
+      Channel for sending messages to the broker
+
+  """
+
   def __init__(self):
 
     super().__init__()
     self.id = 60
     logger.info("FRBID module initialised")
-
     self._model = None
     self._out_queue = None
+
+    self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+    self._channel = self._connection.channel()
 
   def set_model(self, model) -> None:
 
@@ -456,11 +490,31 @@ class FrbidModule(ComputeModule):
 
     self._out_queue = out_queue
 
-  async def process(self, metadata : Dict) -> None:
+  async def process(self, metadata: Dict) -> None:
 
     """"
+    Run the FRBID classification on submitted candidate
 
-    Start the FRBID processing
+		This method receives the candidate from the previous stages of
+		processing and runs the ML classification on the correctly
+		pre-processed candidate.
+
+		After the classification all the candidates (this may change in
+		the future, depending on the requirements) are sent
+		to the archiving. Only candidates with the label of 1 are send
+		to the Supervisor and will participate in triggering.
+
+		Arguments:
+
+			metadata: Dict
+				Metadata information for the FRBID processing. Currently
+				includes hardcoded values for the model name (NET3)
+				and probability threshold for assigning the candidate
+				label of 1 (0.5)
+
+		Returns:
+
+			None
 
     """
 
@@ -478,7 +532,26 @@ class FrbidModule(ComputeModule):
 
     self._data.metadata["cand_metadata"]["label"] = label
     self._data.metadata["cand_metadata"]["prob"] = prob
+
     await self._out_queue.put(self._data)
+
+    if label > 0.0:
+      message = {
+        "dm": self._data.metadata["cand_metadata"]["dm"],
+        "mjd": self._data.metadata["cand_metadata"]["mjd"],
+        "snr": self._data.metadata["cand_metadata"]["snr"],
+        "beam_abs": self._data.metadata["beam_metadata"]["beam_abs"],
+        "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
+        "ra": self._data.metadata["beam_metadata"]["beam_ra"],
+        "dec":	self._data.metadata["beam_metadata"]["beam_dec"],
+        "time_sent": perf_counter()
+      }
+
+      logger.debug("Sending the data")
+
+      self._channel.basic_publish(exchange="post_processing",
+                                  routing_key="clustering",
+                                  body=dumps(message))
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 
