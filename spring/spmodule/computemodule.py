@@ -2,7 +2,7 @@ import logging
 import pika
 
 from math import ceil
-from time import perf_counter
+from time import perf_counter, time
 from typing import Dict
 
 import cupy as cp
@@ -544,11 +544,10 @@ class FrbidModule(ComputeModule):
         "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
         "ra": self._data.metadata["beam_metadata"]["beam_ra"],
         "dec":	self._data.metadata["beam_metadata"]["beam_dec"],
-        "time_sent": perf_counter()
+        "time_sent": time()
       }
 
       logger.debug("Sending the data")
-
       self._channel.basic_publish(exchange="post_processing",
                                   routing_key="clustering",
                                   body=dumps(message))
