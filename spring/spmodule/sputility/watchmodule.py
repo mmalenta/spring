@@ -103,52 +103,7 @@ class WatchModule(UtilityModule):
 
   async def watch(self, cand_queue: CandQueue) -> None:
 
-    directories = sorted(glob(path.join(self._base_directory,
-                         "20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_"
-                         + "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*/")))
-
-    # If we ask for more directories than there are present, we will
-    # only get whatever there is
-    directories = directories[-1 * self._max_watch :]
-    logger.info("%d directories at the start: %s",
-                len(directories), ", ".join(directories))
-    start_dirs = len(directories)
-
-    if start_dirs < self._max_watch:
-      logger.info("Starting with fewer directories than requested!")
-      logger.info("Using %d directories instead of requested %d",
-                  start_dirs, self._max_watch)
-
-    # Strip all of the directory structure to leave just
-    # the UTC part. Then convert it to time since epoch for every
-    # directory in the list
-    dir_times = [mktime(strptime(val[val[:-1].rfind('/')+1:-1],
-                 "%Y-%m-%d_%H:%M:%S")) for val in directories]
-
-    # Drop everything that is more than self._start_limit_hour hours
-    # older than the newest directory
-    directories = [val[0] for val in zip(directories, dir_times)
-                   if abs(val[1] - dir_times[-1]) <
-                   self._start_limit_hour * 3600]
-
-    dropped = start_dirs - len(directories)
-
-    # This will also fire if there are simply fewer directories than
-    # we asked to watch
-    if dropped > 0:
-      logger.info(f"Dropping {dropped} "
-                  + f"{'directories' if dropped > 1 else 'directory'}"
-                  + f" due to the time limit of {self._start_limit_hour}h")
-
-    dirs_data = [{"dir": idir,
-                  "logs": self._read_logs(idir),
-                  "total_fil": 0,
-                  "new_fil": 0,
-                  "last_file": [0] * len(self._read_logs(idir)),
-                  "total_cands": [0] * len(self._read_logs(idir)),
-                  "new_cands": [0] * len(self._read_logs(idir)),
-                  "last_cand": [0] * len(self._read_logs(idir))}
-                 for idir in directories]
+    dirs_data = self._get_current_dirs()
 
     while True:
 
@@ -312,15 +267,130 @@ class WatchModule(UtilityModule):
           # Update the newest file times for all the beams
           data["last_file"] = last_file
 
-        logger.debug("Recalculating directories...")
+        logger.info("Recalculating directories...")
+        dirs_data = self._get_current_dirs(dirs_data)
 
         await asyncio.sleep(1)
         logger.debug("Candidate queue size is now %d",
                      cand_queue.qsize())
 
+        # End of try block
+
       except asyncio.CancelledError:
         logger.info("Watcher quitting")
         return
+    
+    # End of while loop
+
+  def _get_current_dirs(self, current_directories: List = []) -> List:
+
+    """
+
+    Methods for getting new directories and their info.
+
+    If new directories appear, the oldest ones are removed from
+    the current directories list.
+    If no new directories are present, the list is kept the same
+    to ensure that the filterbank file and candidate watching
+    stays consistent.
+
+    Arguments:
+
+      current_directories: List, default []
+        List of dictionary that contains the information about current
+        directories being watched. If the list is empty, that implies
+        first run and a new list is returned that contains all the
+        directories that matched our requirements.
+
+    Returns:
+
+      current_directories: List
+        List of directories to be watched. Updated version of what was
+        passed if new directories are present, otherwise the old list
+        is passed through.
+
+    """
+
+    # Oldest directories will be at the start of this list
+    directories = sorted(glob(path.join(self._base_directory, 
+                         "20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_"
+                         + "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*/")))
+
+    # If we ask for more directories than there are present, we will
+    # only get whatever there is
+    directories = directories[-1 * self._max_watch :]
+
+    if len(directories) == 0:
+      logger.info("No directories found under %s", self._base_directory)
+      # Don't bother with any extra work
+      return []
+
+    logger.info("%d directories at the start: %s",
+                len(directories), ", ".join(directories))
+    start_dirs = len(directories)
+
+    if start_dirs < self._max_watch:
+      logger.info("Starting with fewer directories than requested!")
+      logger.info("Using %d directories instead of requested %d",
+                  start_dirs, self._max_watch)
+
+    # Strip all of the directory structure to leave just
+    # the UTC part. Then convert it to time since epoch for every
+    # directory in the list
+    dir_times = [mktime(strptime(val[val[:-1].rfind('/')+1:-1],
+                 "%Y-%m-%d_%H:%M:%S")) for val in directories]
+
+    # Drop everything that is more than self._start_limit_hour hours
+    # older than the newest directory
+    directories = [val[0] for val in zip(directories, dir_times)
+                   if abs(val[1] - dir_times[-1]) <
+                   self._start_limit_hour * 3600]
+
+    dropped = start_dirs - len(directories)
+
+    # This will also fire if there are fewer directories than
+    # we asked to watch
+    if dropped > 0:
+      logger.info(f"Dropping {dropped} "
+                  + f"{'directories' if dropped > 1 else 'directory'}"
+                  + f" due to the time limit of {self._start_limit_hour}h")
+
+    tmp_current = [curr["dir"] for curr in current_directories]
+    # There are some new directories that we need to include
+    # in the list of current watched directories
+    # Or directories were removed due to the time limit
+    if (sorted(directories) != sorted(tmp_current)):
+
+      logger.info("Directories change detected. Updating the watch list...")
+
+      # This is not overly sophisticated way of updating the current
+      # directories list, but it covers all of the age cases in the
+      # least amount of code
+      tmp_current_directories = []
+      for idir in sorted(directories):
+
+        if idir in tmp_current:
+        
+          for icurr in current_directories:
+        
+            if icurr["dir"] == idir:
+              tmp_current_directories.append(icurr)
+              break
+
+        else:
+
+          tmp_current_directories.append({"dir": idir,
+                  "logs": self._read_logs(idir),
+                  "total_fil": 0,
+                  "new_fil": 0,
+                  "last_file": [0] * len(self._read_logs(idir)),
+                  "total_cands": [0] * len(self._read_logs(idir)),
+                  "new_cands": [0] * len(self._read_logs(idir)),
+                  "last_cand": [0] * len(self._read_logs(idir))})
+
+      current_directories = tmp_current_directories
+
+    return current_directories
 
   def _read_logs(self, directory: str, 
                  log_file: str = "run_summary.json") -> List:
