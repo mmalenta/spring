@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from astropy.coordinates import SkyCoord
+from astropy.units import hourangle as ap_ha, deg as ap_deg
 from glob import glob
 from json import load
 from numpy import floor, fromfile, reshape
@@ -88,6 +90,10 @@ class WatchModule(UtilityModule):
 
     # Size of the filterbank header file in bytes
     self._fil_header_size = 136
+
+    self._matcher = Matcher()
+    self._matcher.load_catalogue("psrcat")
+    self._matcher.create_search_tree()
 
     self._fil_wait_sec = 5
     self._start_limit_hour = 24
@@ -242,6 +248,8 @@ class WatchModule(UtilityModule):
                   # the pipeline is stopped
                   time_samples = int(floor(fil_data.size / header["nchans"]))
 
+                 
+
                   cand_dict = {
                       "data": reshape(fil_data[:(time_samples * header["nchans"])],
                                       (time_samples, header["nchans"])).T,
@@ -251,7 +259,23 @@ class WatchModule(UtilityModule):
                       "time": perf_counter()
                   }
 
+                  beam_position = SkyCoord(ra = ibeam["beam_ra"],
+                                            dec = ibeam["beam_dec"],
+                                            frame="icrs",
+                                            unit=(ap_ha, ap_deg))
+
                   for candidx, cand in matched_cands.iterrows():
+
+                    known_matches = self._matcher.find_matches(beam_position,
+                                                              cand["DM"])
+
+                    if known_matches is not None:
+
+                      logger.info("This candidate is a known source")
+                      logger.info("It will not be processed further")
+
+                      continue
+
                     cand_metadata = {
                         "mjd": cand["MJD"],
                         "dm": cand["DM"],
