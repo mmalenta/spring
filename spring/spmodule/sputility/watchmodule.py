@@ -10,6 +10,8 @@ from struct import unpack
 from time import mktime, perf_counter, strptime
 from typing import Dict, List
 
+from psrmatch import Matcher
+
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
 from spqueue.candidatequeue import CandidateQueue as CandQueue
@@ -31,24 +33,50 @@ class WatchModule(UtilityModule):
   yielded new files for a period of time (i.e. there is a newer
   directory in front of then and they themselves have been fully
   processed) will be removed from the list and not watched.
-  Ideally we will not have to watch multiple directories at the same
-  time as we aim to have real-time processing.
+  Ideally this module will not have to watch multiple directories
+   at the same time real-time processing being the main requirement.
+
+  Arguments:
+
+    base_directory: str
+      Base directory where the watched directories reside.
+
+    max_watch: int, default 3
+      Maximum number of directories to watch at the same time.
 
   Attributes:
 
-      _base_directory: str
-          Base directory where the watched directories reside
+    _base_directory: str
+      Base directory where the watched directories reside.
 
-      _directories: List[str]
-          Directories to watch.
+    _directories: List[str]
+      Directories to watch.
 
-      _max_watch: int
-          Maximum number of directories to watch at the same time
+    _fil_wait_sec: float
+      Number of seconds that is spent on checking whether a given
+      filterbank file is still being written into. If the file is still
+      being written into after that time, watcher moves to another file
+      and the previous file is picked up again on the next iteration.
 
-      _start_limit_hour: int
-          If at the start, the newest directory is more than 24h
-          younger than the other _max_watch - 1 directories, the other
-          directories are not included in the first run
+    _matcher: Matcher
+      Known source matcher
+
+    _max_watch: int
+      Maximum number of directories to watch at the same time.
+
+    _spccl_wait_sec: float
+      Number of seconds that is spend on checkign whether a given
+      .spccl file exists and has candidates that can be matched with a
+      filterbank file. If the file doesn't exist or there are no
+      candidates in it, it is skipped and the filterbank file list is
+      reset for that particular directory.
+
+    _start_limit_hour: int
+      If there are directories older than the newest directory by this
+      limit, then they are not included in the watcher list.
+
+    _spccl_header: List
+      Header names used in the .sppcl file.
 
   """
 
@@ -84,21 +112,29 @@ class WatchModule(UtilityModule):
     directories = directories[-1 * self._max_watch :]
     logger.info("%d directories at the start: %s",
                 len(directories), ", ".join(directories))
+    start_dirs = len(directories)
 
-    # First we strip all of the directory structure to leave just
-    # the UTC part. Then we convert it to time since epoch for every
+    if start_dirs < self._max_watch:
+      logger.info("Starting with fewer directories than requested!")
+      logger.info("Using %d directories instead of requested %d",
+                  start_dirs, self._max_watch)
+
+    # Strip all of the directory structure to leave just
+    # the UTC part. Then convert it to time since epoch for every
     # directory in the list
     dir_times = [mktime(strptime(val[val[:-1].rfind('/')+1:-1],
                  "%Y-%m-%d_%H:%M:%S")) for val in directories]
 
-    # Now we drop everything that is more than
-    # self._start_limit_hour hours older than the newest directory
+    # Drop everything that is more than self._start_limit_hour hours
+    # older than the newest directory
     directories = [val[0] for val in zip(directories, dir_times)
                    if abs(val[1] - dir_times[-1]) <
                    self._start_limit_hour * 3600]
 
-    dropped = self._max_watch - len(directories)
+    dropped = start_dirs - len(directories)
 
+    # This will also fire if there are simply fewer directories than
+    # we asked to watch
     if dropped > 0:
       logger.info(f"Dropping {dropped} "
                   + f"{'directories' if dropped > 1 else 'directory'}"
@@ -171,7 +207,7 @@ class WatchModule(UtilityModule):
 
               if waited >= self._spccl_wait_sec:
                 logger.error("No valid .spccl file after %.2f seconds \
-                             under %d. Will reset filterbank candidates",
+                             under %s. Will reset filterbank candidates",
                              self._spccl_wait_sec, full_dir)
                 last_file[rel_number] = 0
                 continue
@@ -190,7 +226,7 @@ class WatchModule(UtilityModule):
 
               if waited >= self._spccl_wait_sec:
                 logger.error("Empty .spccl file after %.2f seconds \
-                             under %d. Will reset filterbank candidates",
+                             under %s. Will reset filterbank candidates",
                              self._spccl_wait_sec, full_dir)
                 last_file[rel_number] = 0
                 continue
