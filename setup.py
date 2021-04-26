@@ -13,6 +13,6 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     package_dir={"": "spring"},
-    packages=["spcandidate", "spmodule", "spmodule.sputility", "sppipeline", "spqueue"],
+    packages=["spcandidate", "spmodule", "spmodule.sputility", "spmodule.spcompute", "sppipeline", "spqueue"],
     scripts=["bin/post_processing.py"]
 )

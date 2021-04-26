@@ -111,6 +111,9 @@ class Pipeline:
 
         # This will be gone at some point
         metadata = {
+          "known": {
+
+          },
           "iqrm": {
 
           },
@@ -138,7 +141,8 @@ class Pipeline:
         metadata["mask"]["mask"] = ones(cand_data.metadata["fil_metadata"]["nchans"]).astype(float32)
 
         for module in self._module_queue:
-          await module.process(metadata[(module.__class__.__name__[:-6]).lower()])
+          if await module.process(metadata[(module.__class__.__name__[:-6]).lower()]) is not None:
+            break
 
         logger.debug("Candidate finished processing %.4fs\
                      after being added to the queue",

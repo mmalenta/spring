@@ -1,5 +1,5 @@
 import logging
-import spmodule.computemodule as cm
+import spmodule.spcompute as cm
 
 from typing import List
 
@@ -52,7 +52,7 @@ class ComputeQueue:
     for module in modules:
       # Follow the naming convention described in the
       # ComputeModule class docstring
-      self._queue.append(getattr(cm, module.capitalize() + "Module")())
+      self._queue.append(getattr(getattr(cm, module + "module"), module.capitalize() + "Module")())
       self._queue.sort(key=lambda val: val.id)
 
   def __iter__(self):
@@ -144,7 +144,7 @@ class ComputeQueue:
 
     if isinstance(idx, str):
       for module in self._queue:
-        if isinstance(module, getattr(cm, idx.capitalize() + "Module")):
+        if isinstance(module, getattr(getattr(cm, idx + "module"), idx.capitalize() + "Module")):
           print("Found module " + idx)
           return module
 

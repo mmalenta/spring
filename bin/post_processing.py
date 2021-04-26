@@ -53,7 +53,7 @@ def main():
                       # If used, require at least one extra module
                       nargs="+",
                       type=str,
-                      choices=["iqrm", "zerodm", "threshold", "mask",
+                      choices=["known", "iqrm", "zerodm", "threshold", "mask",
                                "multibeam", "plot", "archive"])
 
   parser.add_argument("--model", help="Model name and model directory",

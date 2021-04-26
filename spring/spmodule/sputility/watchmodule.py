@@ -12,8 +12,6 @@ from struct import unpack
 from time import mktime, perf_counter, strptime
 from typing import Dict, List
 
-from psrmatch import Matcher
-
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
 from spqueue.candidatequeue import CandidateQueue as CandQueue
@@ -38,7 +36,7 @@ class WatchModule(UtilityModule):
   Ideally this module will not have to watch multiple directories
    at the same time real-time processing being the main requirement.
 
-  Arguments:
+  Parameters:
 
     base_directory: str
       Base directory where the watched directories reside.
@@ -59,9 +57,6 @@ class WatchModule(UtilityModule):
       filterbank file is still being written into. If the file is still
       being written into after that time, watcher moves to another file
       and the previous file is picked up again on the next iteration.
-
-    _matcher: Matcher
-      Known source matcher
 
     _max_watch: int
       Maximum number of directories to watch at the same time.
@@ -90,10 +85,6 @@ class WatchModule(UtilityModule):
 
     # Size of the filterbank header file in bytes
     self._fil_header_size = 136
-
-    self._matcher = Matcher()
-    self._matcher.load_catalogue("psrcat")
-    self._matcher.create_search_tree()
 
     self._fil_wait_sec = 5
     self._start_limit_hour = 24
@@ -248,8 +239,6 @@ class WatchModule(UtilityModule):
                   # the pipeline is stopped
                   time_samples = int(floor(fil_data.size / header["nchans"]))
 
-                 
-
                   cand_dict = {
                       "data": reshape(fil_data[:(time_samples * header["nchans"])],
                                       (time_samples, header["nchans"])).T,
@@ -259,22 +248,7 @@ class WatchModule(UtilityModule):
                       "time": perf_counter()
                   }
 
-                  beam_position = SkyCoord(ra = ibeam["beam_ra"],
-                                            dec = ibeam["beam_dec"],
-                                            frame="icrs",
-                                            unit=(ap_ha, ap_deg))
-
                   for candidx, cand in matched_cands.iterrows():
-
-                    known_matches = self._matcher.find_matches(beam_position,
-                                                              cand["DM"])
-
-                    if known_matches is not None:
-
-                      logger.info("This candidate is a known source")
-                      logger.info("It will not be processed further")
-
-                      continue
 
                     cand_metadata = {
                         "mjd": cand["MJD"],
@@ -318,7 +292,7 @@ class WatchModule(UtilityModule):
     to ensure that the filterbank file and candidate watching
     stays consistent.
 
-    Arguments:
+    Parameters:
 
       current_directories: List, default []
         List of dictionary that contains the information about current
