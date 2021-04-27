@@ -377,14 +377,17 @@ class WatchModule(UtilityModule):
 
         else:
 
+          dir_logs = self._read_logs(idir)
+          num_beams = len(dir_logs)
+
           tmp_current_directories.append({"dir": idir,
-                  "logs": self._read_logs(idir),
+                  "logs": dir_logs,
                   "total_fil": 0,
                   "new_fil": 0,
-                  "last_file": [0] * len(self._read_logs(idir)),
-                  "total_cands": [0] * len(self._read_logs(idir)),
-                  "new_cands": [0] * len(self._read_logs(idir)),
-                  "last_cand": [0] * len(self._read_logs(idir))})
+                  "last_file": [0] * num_beams,
+                  "total_cands": [0] * num_beams,
+                  "new_cands": [0] * num_beams,
+                  "last_cand": [0] * num_beams})
 
       current_directories = tmp_current_directories
 
