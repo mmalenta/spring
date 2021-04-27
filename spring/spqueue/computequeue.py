@@ -39,6 +39,9 @@ class ComputeQueue:
 
   def __init__(self, modules: List[str]):
 
+    # Having FRBID in this list is a bit redundand
+    # as it is a requirement to provide a valid configuration
+    # for this module
     self._required = ["candmaker", "frbid"]
     self._queue = []
     self._idx = 0

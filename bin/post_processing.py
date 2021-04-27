@@ -16,6 +16,46 @@ from sppipeline.pipeline import Pipeline
 
 logger = logging.getLogger()
 
+def check_frbid_model(model_name: str, model_dir: str) -> bool:
+
+  """
+
+  Checks whether the provided FRB model configuration is correct and
+  the selected model loads.
+
+  Parameters:
+
+    model_name: str
+      Name of the model to be used
+
+    mode_dir: str
+      Directory where the model exists
+
+    Returns
+
+      : bool
+      True if the checks are passed and the model can be loaded.
+      False if the checks fail and the model cannod be loaded.
+
+  """
+
+  if (model_name not in
+    ["NET1_32_64", "NET1_64_128", "NET1_128_256", "NET2", "NET3"]):
+    logger.error("Unrecognised model %s!", model_name)
+    return False
+  
+  if not path.isdir(model_dir):
+    logger.error("Model directory %s does not exist!", model_dir)
+    return False
+  else:
+    if ( (not path.exists(path.join(model_dir, model_name + ".json")) ) or 
+          (not path.exists(path.join(model_dir, model_name + ".h5")) )):
+      logger.error("Model %s not exist!",
+                    path.join(model_dir, model_name))
+      return False
+  
+  return True
+
 def parse_config_file(current_config: Dict, config_file: str) -> Dict:
 
   """
@@ -46,23 +86,31 @@ def parse_config_file(current_config: Dict, config_file: str) -> Dict:
     file_config = {}
     config_json = load(cf)
 
-    for option in config_json:
+    for key, val in config_json.items():
 
-      if (option == "modules"):
+      if (key == "modules"):
 
         file_config["modules"] = []
 
-        for module in config_json["modules"]: 
+        for module in config_json["modules"].items(): 
 
-          module_config = {}
-          for conf in config_json["modules"][module]:
-            module_config[conf] = config_json["modules"][module][conf]
+          if module[0] == "frbid":
+            print(module[1])
+            if ("model" not in module[1] or "model_dir" not in module[1]):
+              logger.error("Did not provide a sufficient configuration for FRBID!")
+              logger.error("Will quit now!")
+              exit()
+            
+            if not check_frbid_model(module[1]["model"], module[1]["model_dir"]):
+              logger.error("Did not provide a correct configuration for FRBID!")
+              logger.error("Will quit now!")
+              exit()
 
-          file_config["modules"].append((module, module_config))
+          file_config["modules"].append(module)
 
       else:
 
-        file_config[option] = config_json[option]
+        file_config[key] = val
 
   current_config.update(file_config)
   return current_config
@@ -116,7 +164,7 @@ def main():
                                "multibeam", "plot", "archive"])
 
   parser.add_argument("--model", help="Model name and model directory",
-                      required=True,
+                      required=False,
                       nargs=2,
                       type=str)
 
@@ -155,27 +203,24 @@ def main():
   cl_handler.setFormatter(formatter)
   logger.addHandler(cl_handler)
 
-  chosen_model = arguments.model[0].upper()
-  if (chosen_model not in
-      ["NET1_32_64", "NET1_64_128", "NET1_128_256", "NET2", "NET3"]):
+  modules = [(module, {}) for module in arguments.modules]
+  if arguments.model is not None:
 
-    logger.warning(f"Unrecognised model '{chosen_model}'! "
-                   + "Will default to NET3!")
-    chosen_model = "NET3"
+    chosen_model = arguments.model[0].upper()
+    chosen_dir = arguments.model[1]
 
-  chosen_dir = arguments.model[1]
-  if not path.isdir(chosen_dir):
-    logger.error(f"Model directory '{chosen_dir}' does not exist! "
-                 + "Will quit now!")
-    # So this is not ideal, but will do for now
-    exit()
+    if not check_frbid_model(chosen_model, chosen_dir):
+      logger.error("Did not provide a correct configuration for FRBID!")
+      logger.error("Will quit now!")
+      exit()
+
+    modules.append(("frbid", {"model": chosen_model,
+                              "model_dir": chosen_dir}))
 
   # Separate into list of lists of tuples (one inner list per row)
   plots = [ [(cell[0], float(cell[1:])) for cell in row.split(",")]
             for row in arguments.plots.split(":") ]
 
-
-  modules = [(module, {}) for module in arguments.modules]
   modules_abbr = [module[0].upper() for module in arguments.modules]
 
   configuration = {
@@ -191,10 +236,14 @@ def main():
   }
 
   if arguments.config is not None:
-
     logger.warning("JSON configuration file provided! \
                     Some command line options may be overwritten!")
     configuration = parse_config_file(configuration, arguments.config)
+
+  if ("frbid" not in [module[0] for module in configuration["modules"]]):
+    logger.error("Did not provide configuration for FRBID!")
+    logger.error("Will quit now!")
+    exit()
 
   pipeline = Pipeline(configuration)
   loop = asyncio.get_event_loop()
