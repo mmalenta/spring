@@ -8,10 +8,64 @@ import signal
 
 from functools import partial
 from os import path
+from typing import Dict
+
+from json import load
 
 from sppipeline.pipeline import Pipeline
 
 logger = logging.getLogger()
+
+def parse_config_file(current_config: Dict, config_file: str) -> Dict:
+
+  """
+
+  Parses the configuration JSON file.
+
+  The configuration JSON file exists to simplify the passing of initial
+  arguments to the pipeline. Configuration file takes precedence over
+  arguments provided on the command line.
+
+  Parameters:
+
+    current_config: Dict
+      Initial configuration dictionary obtained from command line
+    
+    config_file: str
+      Path to the JSON configuration file
+
+  Returns
+
+    current_config: Dict
+      An updated configuration dictionary
+
+  """
+
+  with open(config_file, "r") as cf:
+
+    file_config = {}
+    config_json = load(cf)
+
+    for option in config_json:
+
+      if (option == "modules"):
+
+        file_config["modules"] = []
+
+        for module in config_json["modules"]: 
+
+          module_config = {}
+          for conf in config_json["modules"][module]:
+            module_config[conf] = config_json["modules"][module][conf]
+
+          file_config["modules"].append((module, module_config))
+
+      else:
+
+        file_config[option] = config_json[option]
+
+  current_config.update(file_config)
+  return current_config
 
 def main():
 
@@ -27,6 +81,11 @@ def main():
                               epilog="For any bugs or feature requests, \
                                       please start an issue at \
                                       https://github.com/mmalenta/spring")
+
+  parser.add_argument("--config",
+                      help="JSON config file",
+                      required=False,
+                      type=str)
 
   parser.add_argument("-l", "--log",
                       help="Log level", 
@@ -115,19 +174,27 @@ def main():
   plots = [ [(cell[0], float(cell[1:])) for cell in row.split(",")]
             for row in arguments.plots.split(":") ]
 
-  modules = [module[0].upper() for module in arguments.modules]
+
+  modules = [(module, {}) for module in arguments.modules]
+  modules_abbr = [module[0].upper() for module in arguments.modules]
 
   configuration = {
       "base_directory": arguments.directory,
       "num_watchers": arguments.watchers,
-      "modules": arguments.modules,
+      "modules": modules,
       "model": [chosen_model, chosen_dir],
       "plots": {
           "plots": plots,
           "out_chans": arguments.channels,
-          "modules": modules,
+          "modules": modules_abbr,
       }
   }
+
+  if arguments.config is not None:
+
+    logger.warning("JSON configuration file provided! \
+                    Some command line options may be overwritten!")
+    configuration = parse_config_file(configuration, arguments.config)
 
   pipeline = Pipeline(configuration)
   loop = asyncio.get_event_loop()

@@ -18,7 +18,7 @@ DAY_SEC = 86400.0
 
 class CandmakerModule(ComputeModule):
 
-  def __init__(self):
+  def __init__(self, config: Dict = None):
 
     super().__init__()
     self.id = 50
