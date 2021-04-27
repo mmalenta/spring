@@ -26,22 +26,52 @@ class Pipeline:
   Main pipeline class.
 
   Pipeline is a high-level object that manages the flow of candidates
-  and data.
+  and data. At startup it initialises all the requested modules and
+  puts them in the relevant processing queues.
+  When processing, it is responsible for pulling new candidates from
+  candidate queue and pushing them to further processing.
+
+  Parameters:
+
+    config : Dict
+      Configuration parameters for the pipeline. Mainly used to
+      initialise relevant modules.
+
+  Attributes:
+
+    _running: bool
+      Indicates wherer the pipeline is still running. Running pipeline
+      is not paused and processing the data.
+
+    _paused: bool
+      Indicates whether the pipeline is paused. Paused pipeline is not
+      running and not processing any data. This state can be used
+      for updating the pipeline configuration.
+
+    _watch_module: UtilityModule
+      Module responsible for watching directories and finding new
+      candidates.
+
+    _plot_module: UtilityModule
+      Module responsible for creating the candidate JPG plots.
+
+    _archive_module: UtilityModule
+      Module responsible for creating the candidate HDF5 archives.
+
+    _module_queue: List[ComputeModule]
+      List of modules responsible for processing of candidates.
+
+    _candidate_queue: CandQueue
+      Queue where new candidates are push to by the Watch Module and
+      are later picked up by pipeline for further processing.
+
+    _final_queue: CandQueue
+      Queue where candidates that passed all the additional processing
+      stages from the _module_queue pipeline are pushed and are later
+      picked up by the plot and archive modules.
 
   """
   def __init__(self, config: Dict):
-    """
-    Constructs the Pipeline object.
-
-    After the construction is done, we end up with pipeline ready 
-    for processing.
-
-    Parameters:
-
-        config : Dict
-
-
-    """
     
     self._running = False
     self._paused = False
@@ -90,6 +120,16 @@ class Pipeline:
     and update the pipeline parameters if relevant request is sent from
     the head node
 
+    Parameters:
+
+      reader:
+
+      writer:
+
+    Returns:
+
+      None
+
     """
 
     try:
@@ -104,6 +144,27 @@ class Pipeline:
 
 
   async def _process(self, cand_queue) -> None:
+
+    """
+
+    Asynchronous method for processing the candidates.
+
+    This method waits for new candidates pused by the watch module
+    to the asynchronous queue. When a candidate is picked up, it is
+    then passed through all the modules in the _module_queue and 
+    pushed to the _final_queue by the FRBID module.
+
+    Parameters:
+
+      cand_queue: CandQueue
+        Queue where new candidates are push to by the Watch Module and
+        are later picked up by pipeline for further processing.
+
+    Returns:
+
+      None
+
+    """
 
     while True:
 
@@ -154,6 +215,27 @@ class Pipeline:
 
   async def _finalise(self, final_queue) -> None:
 
+    """
+
+    Asynchronous method for candidate plotting and archiving.
+
+    This method waits for new candidates to be pused to the
+    queue by the FRBID module after they were processed by all the
+    modules in the _module_queue.
+
+    Parameters:
+
+      final_queue:
+        Queue where candidates that passed all the additional processing
+        stages from the _module_queue pipeline are pushed and are later
+        picked up by the plot and archive modules.
+
+    Returns:
+
+      None
+
+    """
+
     while True:
 
       try:
@@ -171,9 +253,16 @@ class Pipeline:
 
   async def run(self, loop: asyncio.AbstractEventLoop) -> None:
     """
+
     Start the processing.
 
-    This starts watching for incoming candidates.
+    This methoch starts watching for incoming candidates and other
+    asynchronous processing methods.
+
+    Returns:
+
+      None
+
     """
     
     self._running = True
@@ -199,6 +288,11 @@ class Pipeline:
     This method should be used only when the processing script is
     to be quit completely, i.e. after an exception that cannot be 
     recovered from occurs or a SIGKILL is caught.
+
+    Returns:
+
+      None
+
     """
     
     logger.info("Stopping the pipeline")
@@ -219,6 +313,11 @@ class Pipeline:
     Pauses the pipeline and then updates the parameters requested
     by the user. Pipeline processing is resumed upon the update
     completion.
+
+    Returns:
+
+      None
+
     """
     
     self._pause()
@@ -234,6 +333,16 @@ class Pipeline:
 
     In-place changes the current module queue. Must not be called
     on its own, but only as a part of the update() method.
+
+    Parameters:
+
+      module: str
+        Name of the module to add to the processing pipeline.
+
+    Returns:
+
+      None
+
     """
     
     self._module_queue.add_module(module)
@@ -244,6 +353,16 @@ class Pipeline:
 
     In-place changes the current module queue. Must not be called
     on its own, but only as a part of the update() method.
+
+    Parameters:
+
+      module: str
+        Name of the module to remove from the processing pipeline.
+
+    Returns:
+
+      None
+
     """
     
     self._module_queue.remove_module(module)
@@ -260,7 +379,10 @@ class Pipeline:
     updated upon user's request or a recoverable exception is 
     encountered.
 
-    Called by update() method.
+    Returns:
+
+      None
+
     """
     
     self._paused = True
@@ -270,7 +392,10 @@ class Pipeline:
     """
     Resume the previously paused pipeline
 
-    Called by update() method.
+    Returns:
+
+      None
+
     """
     
     self._paused = False
