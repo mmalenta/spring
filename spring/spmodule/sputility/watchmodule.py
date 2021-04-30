@@ -52,6 +52,12 @@ class WatchModule(UtilityModule):
     _directories: List[str]
       Directories to watch.
 
+    _fil_header_size: int
+      Size of the filterbank file header. Used to skip the header and
+      read the data. Hardcoded value will soon be deprecated to allow
+      for different filterbank files, with potentially varying
+      header sizes to be processed.
+
     _fil_wait_sec: float
       Number of seconds that is spent on checking whether a given
       filterbank file is still being written into. If the file is still
@@ -72,7 +78,7 @@ class WatchModule(UtilityModule):
       If there are directories older than the newest directory by this
       limit, then they are not included in the watcher list.
 
-    _spccl_header: List
+    _spccl_header: List[str]
       Header names used in the .sppcl file.
 
   """
@@ -99,6 +105,33 @@ class WatchModule(UtilityModule):
                 self._max_watch, self._base_directory)
 
   async def watch(self, cand_queue: CandQueue) -> None:
+
+    """
+    Watches the directories for updated .spccl and .fil files.
+
+    This methods finds new filterbank files in watched directories and
+    matches them with single-pulse canidates from the .spccl files.
+    Each matched candidates is pushed to the candidate queue for
+    further processing.
+    This methods runs indefinitely in a loop until the pipeline
+    is stopped. It starts with directories that match
+    the selection criteria: at most self._max_watch directories,
+    but less if the self._start_limit_hour wait limits are exceeded.
+    Each beam directory scanned individually in a loop.
+    The directory list is updated if necessary on each iteration.
+    Async sleep at the end of every iteration to enable other work. 
+
+    Parameters:
+
+      cand_queue: CandQueue
+        Asynchronous candidates queue for detected candidates. Each
+        added candidates is later picked up by the processing pipeline.
+
+    Returns:
+
+      None
+
+    """
 
     dirs_data = self._get_current_dirs()
 
@@ -284,7 +317,7 @@ class WatchModule(UtilityModule):
 
     """
 
-    Methods for getting new directories and their info.
+    Methods for getting new directories and their information.
 
     If new directories appear, the oldest ones are removed from
     the current directories list.
@@ -396,6 +429,29 @@ class WatchModule(UtilityModule):
   def _read_logs(self, directory: str, 
                  log_file: str = "run_summary.json") -> List:
 
+    """
+    Read JSON setup for current directory.
+
+    Reads a JSON file which contains the information abotu the current
+    observign run. Currently used to extract beam information.
+
+    Parameters:
+
+      directory: str
+        Base UTC directory where the JSON file can be found. There
+        should be only one such JSON file for UTC directory.
+      
+      log_file: str, default "run_summary.json"
+        Name of the JSON file to be read.
+
+    Returns:
+
+      beam_info: List[Dict]
+        List of dictionaries with the relevant beam information. One
+        dictionary per beam.
+
+    """
+
     beam_info = []
 
     with open(path.join(directory, log_file)) as run_file:
@@ -427,12 +483,12 @@ class WatchModule(UtilityModule):
     Parameters:
 
       file: 
-        Filterbank file buffer
+        Filterbank file buffer.
 
     Returns:
 
       header : Dict
-        Dictionary with relevant header values
+        Dictionary with relevant header values.
 
     """
 
