@@ -7,10 +7,7 @@ from typing import Dict
 
 import cupy as cp
 
-from keras.backend.tensorflow_backend import set_session
-from keras.models import model_from_json
 from numpy import array, float32, ones
-from tensorflow import ConfigProto, Session
 
 from spmodule.sputility.watchmodule import WatchModule
 from spmodule.sputility.plotmodule import PlotModule
@@ -91,25 +88,9 @@ class Pipeline:
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
-    logger.debug("Setting up TensorFlow...")
 
-    tf_config = ConfigProto()
-    tf_config.gpu_options.per_process_gpu_memory_fraction = 0.25 # pylint: disable=no-member
-    set_session(Session(config=tf_config))
-    cp.cuda.Device(0).use()
-
-    with open(path.join(config["model"][1],
-              config["model"][0] + ".json"), "r") as mf:
-      model = model_from_json(mf.read())
-
-    model.load_weights(path.join(config["model"][1],
-                        config["model"][0] + ".h5"))
-    # FRBID should ususally be at the end
-    # Just in case there is some extra post-classification processing
-    self._module_queue["frbid"].set_model(model)
     self._module_queue["frbid"].set_out_queue(self._final_queue)
-
-    logger.debug("TensorFlow has been set up")
+    cp.cuda.Device(0).use()
 
   async def _listen(self, reader, writer) -> None:
 

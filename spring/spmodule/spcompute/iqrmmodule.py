@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class IqrmModule(ComputeModule):
 
-  def __init__(self):
+  def __init__(self, config: Dict = None):
 
     super().__init__()
     self.id = 10

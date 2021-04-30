@@ -2,8 +2,13 @@ import logging
 import pika
 
 from json import dumps
+from os import path
 from time import perf_counter, time
 from typing import Dict
+
+from keras.backend.tensorflow_backend import set_session
+from keras.models import model_from_json
+from tensorflow import ConfigProto, Session
 
 from FRBID_code.prediction_phase import load_candidate, FRB_prediction
 from spmodule.spcompute.computemodule import ComputeModule
@@ -42,16 +47,34 @@ class FrbidModule(ComputeModule):
 
   """
 
-  def __init__(self):
+  def __init__(self, config: Dict = None):
 
     super().__init__()
     self.id = 60
-    logger.info("FRBID module initialised")
+    
+    tf_config = ConfigProto()
+    tf_config.gpu_options.per_process_gpu_memory_fraction = 0.25 # pylint: disable=no-member
+    set_session(Session(config=tf_config))
+    
+    if (config == None) or not config:
+      logger.error("Invalid FRBID configuration!")
+      logger.error("Will quit now!")
+      exit()
+
     self._model = None
     self._out_queue = None
 
+    with open(path.join(config["model_dir"],
+                        config["model"] + ".json"), "r") as mf:
+      self._model = model_from_json(mf.read())
+    
+    self._model.load_weights(path.join(config["model_dir"],
+                                        config["model"] + ".h5"))
+
     self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     self._channel = self._connection.channel()
+
+    logger.info("FRBID module initialised")
 
   def set_model(self, model) -> None:
 
