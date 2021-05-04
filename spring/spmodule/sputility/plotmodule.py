@@ -25,7 +25,12 @@ class PlotModule(UtilityModule):
   non-configurable plot layout (configurability will be added in the
   future),
 
-  Arguments:
+  Parameters:
+
+    config: Dict
+      Module configuration dictionary
+
+  Attributes:
 
     _plots: List[List[tupele]]
       Currenty not in use.
@@ -46,11 +51,6 @@ class PlotModule(UtilityModule):
       Current pipeline version. Displayed on the plot to provide a
       quick identification of the pipeline version that was used to
       produce given plot.
-
-  Parameters:
-
-    config: Dict
-      Module configuration dictionary
 
   """
 
