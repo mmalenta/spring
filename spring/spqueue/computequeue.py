@@ -69,6 +69,14 @@ class ComputeQueue:
     If not done here, creating new iteration will start from where
     the __next__() stopped the last time.
 
+    Parameters:
+
+      None
+
+    Returns:
+
+      None
+
     """
 
     self._idx = 0
@@ -85,16 +93,20 @@ class ComputeQueue:
     the input of the next module. The exception to this rule are
     the first and the last modules
 
-        Returns:
+    Parameters:
 
-            : Module
-                Current module to be run
+      None
 
-        Raises:
+    Returns:
 
-            StopIteration: raised when there are no modules to
-                return. Required for the proper implementation of
-                the __next__() method
+      : Module
+        Current module to be run
+
+    Raises:
+
+      StopIteration: raised when there are no modules to
+        return. Required for the proper implementation of
+        the __next__() method
 
     """
 
@@ -129,18 +141,18 @@ class ComputeQueue:
 
     Parameters:
 
-        idx : int or str
-            Index of the requested module
+      idx : int or str
+        Index of the requested module
 
     Returns:
 
-        : Module
-            Requested module
+      : Module
+        Requested module
         
     Raises:
 
-        IndexError: raised when the index exceeds the length of the
-        module queue.
+      IndexError: raised when the index exceeds the length of the
+      module queue.
 
     """
     if isinstance(idx, int):
@@ -165,8 +177,8 @@ class ComputeQueue:
 
     Returns:
 
-        : int 
-        Lenght of the module queue (list)
+      : int 
+      Lenght of the module queue (list)
 
     """
 
@@ -174,8 +186,42 @@ class ComputeQueue:
 
   def add_module(self, module: Module) -> None:
 
+    """
+    
+    Dynamically add a module to the processing queue.
+
+    Currently not properly implemented.
+
+    Parameters:
+
+      module: Module
+        Module to be added to the processing queue.
+
+    Returns:
+
+      None
+
+    """
+
     self._queue.append(module)
 
   def remove_module(self, module: Module) -> None:
+
+    """
+    
+    Dynamically remove a module to the processing queue.
+
+    Currently not properly implemented.
+
+    Parameters:
+
+      module: Module
+        Module to be removed from the processing queue.
+
+    Returns:
+
+      None
+
+    """
 
     self._queue.remove(module)
