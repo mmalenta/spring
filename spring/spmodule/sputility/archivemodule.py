@@ -54,7 +54,7 @@ class ArchiveModule(UtilityModule):
       cand: Dict
         Dictionary with all the necessary candidate information. 
         Contains the the array with the filterbank data, filterbank
-        metadata with all the filterbanjk header information, candidate
+        metadata with all the filterbank header information, candidate
         metadata with all the candidate detection information and beam
         metadata with the information on the beam where tha candidate
         was detected.
