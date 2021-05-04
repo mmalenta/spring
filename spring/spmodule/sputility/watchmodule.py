@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class WatchModule(UtilityModule):
 
   """
+
   Module responsible for finding new filterbank files in directories
 
   Using default behaviour, this module will be watching the last 'n'
@@ -107,7 +108,8 @@ class WatchModule(UtilityModule):
   async def watch(self, cand_queue: CandQueue) -> None:
 
     """
-    Watches the directories for updated .spccl and .fil files.
+
+    Watch the directories for updated .spccl and .fil files.
 
     This methods finds new filterbank files in watched directories and
     matches them with single-pulse canidates from the .spccl files.
@@ -430,6 +432,7 @@ class WatchModule(UtilityModule):
                  log_file: str = "run_summary.json") -> List:
 
     """
+
     Read JSON setup for current directory.
 
     Reads a JSON file which contains the information abotu the current

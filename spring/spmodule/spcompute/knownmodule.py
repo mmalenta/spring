@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class KnownModule(ComputeModule):
 
   """
+
   Module responsible for matching candidates with known sources
 
   This module checking whether candidates passed from the watch module
@@ -82,6 +83,7 @@ class KnownModule(ComputeModule):
   async def process(self, metadata: Dict):
 
     """
+    
     Matches the candidate to a known source
 
     If a match is found, the candidate is usually not passed further

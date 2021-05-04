@@ -31,9 +31,9 @@ def check_frbid_model(model_name: str, model_dir: str) -> bool:
     mode_dir: str
       Directory where the model exists
 
-    Returns
+  Returns:
 
-      : bool
+    : bool
       True if the checks are passed and the model can be loaded.
       False if the checks fail and the model cannod be loaded.
 
@@ -74,7 +74,7 @@ def parse_config_file(current_config: Dict, config_file: str) -> Dict:
     config_file: str
       Path to the JSON configuration file
 
-  Returns
+  Returns:
 
     current_config: Dict
       An updated configuration dictionary
@@ -118,7 +118,10 @@ def parse_config_file(current_config: Dict, config_file: str) -> Dict:
 def main():
 
   """
-  Main entrypoint to the post-processing pipeline
+
+  Main entrypoint to the post-processing pipeline.
+
+  Parses the command line arguments and starts the processing pipeline.
 
   """
 

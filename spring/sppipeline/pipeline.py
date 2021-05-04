@@ -20,24 +20,25 @@ logger = logging.getLogger(__name__)
 class Pipeline:
 
   """
+
   Main pipeline class.
 
   Pipeline is a high-level object that manages the flow of candidates
   and data. At startup it initialises all the requested modules and
   puts them in the relevant processing queues.
   When processing, it is responsible for pulling new candidates from
-  candidate queue and pushing them to further processing.
+  the candidate queue and pushing them to further processing.
 
   Parameters:
 
     config : Dict
       Configuration parameters for the pipeline. Mainly used to
-      initialise relevant modules.
+      initialise the requested modules.
 
   Attributes:
 
     _running: bool
-      Indicates wherer the pipeline is still running. Running pipeline
+      Indicates whether the pipeline is still running. Running pipeline
       is not paused and processing the data.
 
     _paused: bool
@@ -95,6 +96,7 @@ class Pipeline:
   async def _listen(self, reader, writer) -> None:
 
     """
+
     Listens for an incoming connection from the head node.
 
     Currently broken implementation. Will be used to stop the processing
@@ -264,6 +266,7 @@ class Pipeline:
 
   def stop(self, loop: asyncio.AbstractEventLoop) -> None:
     """
+
     Completely stops and cleans the pipeline.
 
     This method should be used only when the processing script is
@@ -289,6 +292,7 @@ class Pipeline:
 
   def _update(self) -> None:
     """
+
     Update the pipeline.
 
     Pauses the pipeline and then updates the parameters requested
@@ -310,6 +314,7 @@ class Pipeline:
 
   def _add_module(self, module: str) -> None:
     """
+
     Add a module to the module queue.
 
     In-place changes the current module queue. Must not be called
@@ -330,6 +335,7 @@ class Pipeline:
 
   def _remove_module(self, module: str) -> None:
     """
+    
     Remove a module to the module queue.
 
     In-place changes the current module queue. Must not be called

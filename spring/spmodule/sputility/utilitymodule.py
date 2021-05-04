@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 class UtilityModule(Module):
 
   """
+  
   Parent class for all the utility modules.
 
   This class should not be used explicitly in the code.

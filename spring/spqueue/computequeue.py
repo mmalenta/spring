@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 class ComputeQueue:
 
   """
+  
   Queue for pipeline modules.
 
   Not a queue in the FIFO sense. A wrapper around a list,

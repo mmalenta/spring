@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class ZerodmModule(ComputeModule):
 
   """
+  
   Module responsible for running a zeroDM RFI removal algorithm.
 
   Simple zeroDM removal. Calculates mean across all the channels for

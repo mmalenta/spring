@@ -6,7 +6,7 @@ from numpy import empty
 class Candidate:
 
   """
-  Candidate class that wraps all the relevant candidate information
+  Class that wraps all the relevant candidate information
   in one place.
 
   This class encapsulates the data and all the metadata information
