@@ -6,19 +6,29 @@ from numpy import empty
 class Candidate:
 
   """
-  Candidate class.
+  Candidate class that wraps all the relevant candidate information
+  in one place.
 
-  This encapsulates the data and all the metadata information
+  This class encapsulates the data and all the metadata information
   required to process the candidate.
 
+  Parameters:
+
+    cand: Dict
+      Candidate information passed by the watch module.
+
   Attributes:
-    data : Array
-      Data from the saved filterbank file
+
+    data : NumPy Array
+      Data from the saved filterbank file. This data will be changed
+      in-place by the subsequent piepline modules.
 
     metadata : Dict
-      Metadata required to process the candidates. Contains
-      information on both the filterbank file (e.g. nchans, tsamp)
-      and the candidate (e.g. DM, MJD)
+      Metadata required to process the candidates. Contains filterbank
+        metadata with all the filterbank header information, candidate
+        metadata with all the candidate detection information and beam
+        metadata with the information on the beam where tha candidate
+        was detected.
 
   """
 
