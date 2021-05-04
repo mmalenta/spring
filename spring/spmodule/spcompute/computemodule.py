@@ -23,19 +23,19 @@ DAY_SEC = 86400.0
 class ComputeModule(Module):
 
   """
+
   Parent class for all the compute modules.
 
   This class should not be used explicitly in the code.
 
-
-  We break the standard class naming convention here a bit.
+  We break the standard Python class naming convention here.
   To create your own module, use the CamelCase naming convention,
-  with the module indentifier, followed by the word 'Module'. If an 
-  acronym is present in the identifier, capitalise the first letter of
-  the acronym only if present at the start; if present somewhere else,
-  write it all in lowercase. This is linked to how module names and
-  their corresponding command-line names are processed when added to
-  the processing queue.
+  with a single-word module indentifier, followed by the word 'Module'.
+  If an acronym is present in the identifier, capitalise the first
+  letter of the acronym only if present at the start (e.g. Rfi);
+  if present somewhere else, write it all in lowercase (e.g. Zerodm).
+  This is linked to how module names and their corresponding
+  command-line names are processed when added to the processing queue.
 
   """
   def __init__(self):
@@ -46,19 +46,91 @@ class ComputeModule(Module):
 
   def initialise(self, indata: Cand) -> None:
 
+    """
+
+    Set the data that the first module in the processing pipeline
+    will work on.
+
+    A simple wrapper around the set_input, but a different name used
+    to distinguish the functionality.
+
+    Parameters:
+
+      indata: Cand
+        All the data on the candidate being currently processed.
+
+    Returns:
+
+      None
+
+    """
+
     self.set_input(indata)
 
   def set_input(self, indata: Cand) -> None:
 
+    """
+
+    Set the data that the given module will work on.
+
+    Used by the compute queue to pick the output data from the
+    previous module and use it as the input to the current module.
+
+    Parameters:
+
+      indata: Cand
+        All the data on the candidate being currently processed.
+
+    Returns:
+
+      None
+
+    """
+
     self._data = indata
 
   def get_output(self) -> Cand:
+
+    """
+
+    Provide the data that the give module finished workign on.
+
+    Used by the compute queue to get the data from the module and pass
+    it to the next one.
+
+    Parameters:
+
+      None
+
+    Returns
+
+      self._data: Cand
+        All the data on the candidate being currently processed.
+
+    """
 
     return self._data
 
 
 
 class MaskModule(ComputeModule):
+
+  """
+
+  Module responsible for masking the data.
+
+  Applies a static mask to the data.
+
+  Parameters:
+
+    None
+
+  Attributes:
+
+    id: int
+      Module ID used to sort the modules in the processing queue.
+
+  """
 
   def __init__(self):
 
@@ -71,13 +143,13 @@ class MaskModule(ComputeModule):
 
     """"
 
-    Start the masking processing
+    Start the masking processing.
 
-    Applies the user-defined mask to the data.
+    Applies a static, user-defined mask to the data.
 
     Parameters:
 
-      metadata["mask"] : array
+      metadata["mask"] : Numpy Array
         Mask with the length of the number of channels in the
         data. Only values 0 and 1 are allowed. If not supplied,
         none of the channels will be masked.
@@ -87,6 +159,10 @@ class MaskModule(ComputeModule):
         is multiplied with the values is the mask; if false, the
         mask is logical, i.e. 0 means not masking and 1 means
         masking. Defaults to True, i.e. multiplicative mask.
+
+    Returns:
+
+      None
 
     """
     logger.debug("Mask module starting processing")
