@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class KnownModule(ComputeModule):
 
   """
+
   Module responsible for matching candidates with known sources
 
   This module checking whether candidates passed from the watch module
@@ -35,7 +36,7 @@ class KnownModule(ComputeModule):
     _catalogue: str
       Catalogue used for candidate matching
 
-    _known_ratio: float
+    _known_pass_ratio: float
       Ratio of known sources to pass to further processing
 
     _matcher: Matcher
@@ -54,16 +55,18 @@ class KnownModule(ComputeModule):
     super().__init__()
     self.id = 0
 
-    if config == None:
+    print(config)
+
+    if (config == None) or not config:
       self._catalogue = "psrcat"
       self._thresh_dist = 1.5
       self._thresh_dm = 5.0
-      self._known_ratio = 0.01
+      self._known_pass_ratio = 0.01
     else:
       self._catalogue = config["catalogue"]
       self._thresh_dist = config["thresh_dist"]
       self._thresh_dm = config["thresh_dm"]
-      self._known_ratio = config["known_ratio"]
+      self._known_pass_ratio = config["known_pass_ratio"]
 
     self._matcher = Matcher(self._thresh_dist, self._thresh_dm)
 
@@ -80,6 +83,7 @@ class KnownModule(ComputeModule):
   async def process(self, metadata: Dict):
 
     """
+    
     Matches the candidate to a known source
 
     If a match is found, the candidate is usually not passed further
@@ -109,7 +113,7 @@ class KnownModule(ComputeModule):
 
     if (known_matches is not None):
       
-      if (random() <= self._known_ratio):
+      if (random() <= self._known_pass_ratio):
 
         logger.info("This candidate is a known source")
         logger.info("It will be processed further")

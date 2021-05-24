@@ -18,7 +18,52 @@ DAY_SEC = 86400.0
 
 class CandmakerModule(ComputeModule):
 
-  def __init__(self):
+  """
+
+  Module responsible for preparing the data for the FRBID
+  classification. !!! CURRENTLY REQUIRES A CUDA-CAPABLE GPU !!!
+
+  Reads the filterbank data that went through previous processing steps
+  and averages it so that there are 2 samples across the detected pulse.
+  Enough samples are then extracted to create a DM-time plane with
+  the DMs running from 0 to twice the reported candidate DM and 
+  a frequency-time plane dedispersed to the reported candidate DM.
+  If not enough data is present, additional padding is added. It is
+  performed after the data averaging step to reduce the number of
+  samples generated and uses samples drawn from a normal distribution
+  with per-channel mean and standard deviation.
+
+  Parameters:
+
+    config: Dict, default None
+      Currently a dummy variable, not used
+
+  Attributes:
+
+    id: int
+      Module ID used to sort the modules in the processing queue.
+
+    _time_padding: int
+      Number of time samples required at each side of the candidate
+      detection. Added both before and after the candidate.
+
+    _time_samples: int
+      Number of time samples in the candidiate prepared for the FRBID
+      classification; Twice the _time_padding value. Used in both
+      DM-time and frequency-time plots
+    
+    _freq_bands: int
+      Number of frequency bands in the frequency-time FRBID plots.
+      This is a fully dedispersed data, althought only bands are summed
+      up.
+
+    _trial_dms: int
+      Number of DM trials for which the data is dedispersed and then
+      included in the DM-time plot.
+
+  """
+
+  def __init__(self, config: Dict = None):
 
     super().__init__()
     self.id = 50
@@ -37,9 +82,10 @@ class CandmakerModule(ComputeModule):
     Normalisation is done to zero median and unit standard deviation.
     Median and standard deviation are calculated globally over the
     flattened array.
+
     Parematers:
 
-      data: array
+      data: NumPy Array
         Original data array
     
       clip_range: float
@@ -47,7 +93,7 @@ class CandmakerModule(ComputeModule):
 
     Returns:
 
-      data: array
+      data: NumPy Array
         Normalised and clipped data
 
     """
@@ -67,7 +113,26 @@ class CandmakerModule(ComputeModule):
 
     """
 
-    Start the candmaker processing
+    Process the candidate and prepare it for the FRBID classification.
+
+    Picks up the data from the previous pipeline modules, averages,
+    pafs if necessary and dedisperses to form both a DM-time and
+    frequency-time places using CUDA kernels. These kernels are not
+    very sophisticated at the moment and use a simple brute-force
+    dedispersion without any data reuse or other optimisations of this
+    kind. They still perform fast enough for the real-time processing.
+
+    Parameters:
+
+      metadata: Dict
+        Dictionary with all the necessary candidate information. 
+        Contains the the array with the filterbank data, filterbank
+        metadata with all the filterbank header information and candidate
+        metadata with all the candidate detection information.
+
+    Returns:
+
+      None
 
     """
 
@@ -255,7 +320,7 @@ class CandmakerModule(ComputeModule):
 
     band_size = int(nchans / self._freq_bands)
 
-    # These are two independed kernels - could we run then in streams?
+    # These are two independed kernels - could we run them in streams?
     dmt_start = perf_counter()
     # x takes care of time, y takes care of DM
     threads_x = self._time_samples

@@ -11,7 +11,27 @@ logger = logging.getLogger(__name__)
 
 class ZerodmModule(ComputeModule):
 
-  def __init__(self):
+  """
+  
+  Module responsible for running a zeroDM RFI removal algorithm.
+
+  Simple zeroDM removal. Calculates mean across all the channels for
+  every time sample and the subtracts that mean from a given time
+  sample.
+
+  Parameters:
+
+    config: Dict, default None
+      Currently a dummy variable, not used
+
+  Attributes:
+
+    id: int
+      Module ID used to sort the modules in the processing queue.
+
+  """
+
+  def __init__(self, config: Dict = None):
 
     super().__init__()
     self.id = 40
@@ -22,7 +42,19 @@ class ZerodmModule(ComputeModule):
 
     """"
 
-    Start the zeroDM processing
+    Run the zeroDm RFI removal.
+
+    In-place removes (hopefully) the zeroDM RFI.
+
+    Parameters:
+
+      metadata: Dict
+        Dictionary with all the necessary candidate information. 
+        Contains the the array with the filterbank data.
+
+    Returns:
+
+      None
 
     """
 

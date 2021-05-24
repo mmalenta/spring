@@ -25,6 +25,7 @@ class Module:
     Does nothing
 
     Parameters:
+    
         metadata : Dict
             Relevant metadata for processing, i.e. DM to dedisperse
             the data to, channel mask, etc. Depends on the module
