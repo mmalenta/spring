@@ -252,6 +252,7 @@ class WatchModule(UtilityModule):
                   header = self._read_header(ff)
                   header["fil_file"] = ifile[0]
                   header["full_dir"] = full_dir
+                  header["header_size"] = self._fil_header_size
 
                   file_samples = int((ifile[2] - self._fil_header_size)
                                      / header["nchans"])
@@ -265,25 +266,20 @@ class WatchModule(UtilityModule):
                   matched_cands = cands[(cands["MJD"] >= file_start) &
                                         (cands["MJD"] < file_end)]
 
+                  # Bail out early for this file
                   if len(matched_cands) == 0:
                     logger.warning("No candidates found for file %s", file_path)
-
-                  fil_data = fromfile(file_path, dtype='B')[self._fil_header_size:]
-
-                  # We can have a filterbank file being written when
-                  # the pipeline is stopped
-                  time_samples = int(floor(fil_data.size / header["nchans"]))
+                    continue
 
                   cand_dict = {
-                      "data": reshape(fil_data[:(time_samples * header["nchans"])],
-                                      (time_samples, header["nchans"])).T,
+                      "data": None,
                       "fil_metadata": header,
                       "cand_metadata": {},
                       "beam_metadata": ibeam,
                       "time": perf_counter()
                   }
 
-                  for candidx, cand in matched_cands.iterrows():
+                  for _, cand in matched_cands.iterrows():
 
                     cand_metadata = {
                         "mjd": cand["MJD"],

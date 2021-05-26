@@ -58,6 +58,9 @@ class ZerodmModule(ComputeModule):
 
     """
 
+    if self._data.data is None:
+      self._read_filterbank()
+
     logger.debug("ZeroDM module starting processing")
     zerodm_start = perf_counter()
     self._data.data = self._data.data - mean(self._data.data, axis=0)

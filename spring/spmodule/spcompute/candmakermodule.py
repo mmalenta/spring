@@ -136,6 +136,9 @@ class CandmakerModule(ComputeModule):
 
     """
 
+    if self._data.data is None:
+      self._read_filterbank()
+
     cand_metadata = self._data.metadata["cand_metadata"]
     fil_metadata = self._data.metadata["fil_metadata"]
 

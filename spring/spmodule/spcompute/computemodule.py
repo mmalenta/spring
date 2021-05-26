@@ -1,17 +1,10 @@
 import logging
-import pika
 
-from math import ceil
-from time import perf_counter, time
+from os import path
 from typing import Dict
 
-import cupy as cp
+from numpy import array, float32, floor, fromfile, logical_not, newaxis, reshape
 
-from json import dumps
-from numpy import append, array, clip, linspace, logical_not, mean, median
-from numpy import newaxis, random, std
-
-from FRBID_code.prediction_phase import load_candidate, FRB_prediction
 from spcandidate.candidate import Candidate as Cand
 from spmodule.module import Module
 
@@ -66,6 +59,46 @@ class ComputeModule(Module):
     """
 
     self.set_input(indata)
+
+  def _read_filterbank(self) -> None:
+
+    """
+
+    Read the filterbank file
+
+    Depending on the modules used, any of them can be required to be
+    the first to read the actual data from the filterbank file.
+
+    Operates on the data already present in the pipeline.
+
+    Parameters:
+
+      None
+
+    Returns:
+
+      None
+
+    """
+
+    fil_metadata = self._data.metadata["fil_metadata"]
+
+    # Read the data now - only if the data is actually going to be
+    # processed by the subsequent stages
+    file_path = path.join(fil_metadata["full_dir"],
+                            fil_metadata["fil_file"])
+
+                          
+    fil_data = fromfile(file_path, dtype='B')[fil_metadata["header_size"]:]
+    # Just in case we do not have a full filterbank written
+    # This can happen when pipeline is stopped during the write
+    nchans = fil_metadata["nchans"]
+    time_samples = int(floor(fil_data.size / nchans))
+
+    fil_data = reshape(fil_data[:(time_samples * nchans)],
+                        (time_samples, nchans)).astype(float32).T
+
+    self._data.data = fil_data
 
   def set_input(self, indata: Cand) -> None:
 

@@ -57,6 +57,9 @@ class IqrmModule(ComputeModule):
 
     """
 
+    if self._data.data is None:
+      self._read_filterbank()
+
     logger.debug("IQRM module starting processing")
     iqrm_start = perf_counter()
     scaled, norm_mean, norm_stdev = normalise(self._data.data)
