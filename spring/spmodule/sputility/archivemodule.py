@@ -2,7 +2,7 @@ from os import path
 from typing import Dict
 
 import h5py as h5
-from numpy import frombuffer, uint8
+from numpy import frombuffer, fromfile, uint8
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
@@ -41,7 +41,7 @@ class ArchiveModule(UtilityModule):
   def __init__(self, config: Dict):
     super().__init__()
 
-  async def archive(self, cand: Cand) -> None:
+  async def archive(self, cand: Cand, save_fil_data = False) -> None:
 
     """
 
@@ -83,16 +83,34 @@ class ArchiveModule(UtilityModule):
       # /cand/ml
       ml_group = cand_group.create_group("ml")
 
+      # AA detection information
       detection_group.attrs["filterbank"] = fil_metadata["fil_file"]
       detection_group.attrs["mjd"] = cand_metadata["mjd"]
       detection_group.attrs["dm"] = cand_metadata["dm"]
       detection_group.attrs["snr"] = cand_metadata["snr"]
       detection_group.attrs["width"] = cand_metadata["width"]
-      detection_group.attrs["beam"] = beam_metadata["beam_abs"]
-      detection_group.attrs["beam_type"] = beam_metadata["beam_type"]
-      detection_group.attrs["ra"] = beam_metadata["beam_ra"]
-      detection_group.attrs["dec"] = beam_metadata["beam_dec"]
 
+      for key, value in beam_metadata.items():
+        detection_group.attrs[key] = value
+
+      # Read and save the filterbank file - read all the data in its
+      # original format to avoid any need for extra conversion or
+      # combining of header and data chunks of the file
+      if save_fil_data:
+        file_path = path.join(fil_metadata["full_dir"],
+                            fil_metadata["fil_file"])
+
+        fil_data = fromfile(file_path, dtype='B')
+        # Store the filterbank data in uncompressed form
+        # We do not gain too much in terms of size reduction, but we
+        # lose quite a lot in processing time
+        filterbank_dataset = detection_group.create_dataset("filterbank",
+                                                            data=fil_data)
+        # Store all the header values for easier access
+        for key, value in fil_metadata.items():
+          filterbank_dataset.attrs[key] = value
+
+      # Candidate plot
       plot_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
                   str(beam_metadata["beam_abs"]) + beam_metadata["beam_type"] + '.jpg'
 
@@ -104,9 +122,10 @@ class ArchiveModule(UtilityModule):
         binary_plot = plot_file.read()
         binary_plot_array = frombuffer(binary_plot, dtype=uint8)
         plot_dataset = plot_group.create_dataset('jpg', data=binary_plot_array, dtype=uint8)
+
+      # Machine learning classification
       ml_group.attrs["label"] = cand_metadata["label"]
       ml_group.attrs["prob"] = cand_metadata["prob"]
-
       dm_time_dataset = ml_group.create_dataset("dm_time",
                                                 data=cand.ml_cand["dmt"])
       freq_time_dataset = ml_group.create_dataset("freq_time",
