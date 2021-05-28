@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from astropy.coordinates import SkyCoord
+from astropy.units import hourangle as ap_ha, deg as ap_deg
 from glob import glob
 from json import load
 from numpy import floor, fromfile, reshape
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 class WatchModule(UtilityModule):
 
   """
+
   Module responsible for finding new filterbank files in directories
 
   Using default behaviour, this module will be watching the last 'n'
@@ -31,24 +34,53 @@ class WatchModule(UtilityModule):
   yielded new files for a period of time (i.e. there is a newer
   directory in front of then and they themselves have been fully
   processed) will be removed from the list and not watched.
-  Ideally we will not have to watch multiple directories at the same
-  time as we aim to have real-time processing.
+  Ideally this module will not have to watch multiple directories
+   at the same time real-time processing being the main requirement.
+
+  Parameters:
+
+    base_directory: str
+      Base directory where the watched directories reside.
+
+    max_watch: int, default 3
+      Maximum number of directories to watch at the same time.
 
   Attributes:
 
-      _base_directory: str
-          Base directory where the watched directories reside
+    _base_directory: str
+      Base directory where the watched directories reside.
 
-      _directories: List[str]
-          Directories to watch.
+    _directories: List[str]
+      Directories to watch.
 
-      _max_watch: int
-          Maximum number of directories to watch at the same time
+    _fil_header_size: int
+      Size of the filterbank file header. Used to skip the header and
+      read the data. Hardcoded value will soon be deprecated to allow
+      for different filterbank files, with potentially varying
+      header sizes to be processed.
 
-      _start_limit_hour: int
-          If at the start, the newest directory is more than 24h
-          younger than the other _max_watch - 1 directories, the other
-          directories are not included in the first run
+    _fil_wait_sec: float
+      Number of seconds that is spent on checking whether a given
+      filterbank file is still being written into. If the file is still
+      being written into after that time, watcher moves to another file
+      and the previous file is picked up again on the next iteration.
+
+    _max_watch: int
+      Maximum number of directories to watch at the same time.
+
+    _spccl_wait_sec: float
+      Number of seconds that is spend on checkign whether a given
+      .spccl file exists and has candidates that can be matched with a
+      filterbank file. If the file doesn't exist or there are no
+      candidates in it, it is skipped and the filterbank file list is
+      reset for that particular directory.
+
+    _start_limit_hour: int
+      If there are directories older than the newest directory by this
+      limit, then they are not included in the watcher list.
+
+    _spccl_header: List[str]
+      Header names used in the .sppcl file.
 
   """
 
@@ -75,44 +107,35 @@ class WatchModule(UtilityModule):
 
   async def watch(self, cand_queue: CandQueue) -> None:
 
-    directories = sorted(glob(path.join(self._base_directory,
-                         "20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_"
-                         + "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*/")))
+    """
 
-    # If we ask for more directories than there are present, we will
-    # only get whatever there is
-    directories = directories[-1 * self._max_watch :]
-    logger.info("%d directories at the start: %s",
-                len(directories), ", ".join(directories))
+    Watch the directories for updated .spccl and .fil files.
 
-    # First we strip all of the directory structure to leave just
-    # the UTC part. Then we convert it to time since epoch for every
-    # directory in the list
-    dir_times = [mktime(strptime(val[val[:-1].rfind('/')+1:-1],
-                 "%Y-%m-%d_%H:%M:%S")) for val in directories]
+    This methods finds new filterbank files in watched directories and
+    matches them with single-pulse canidates from the .spccl files.
+    Each matched candidates is pushed to the candidate queue for
+    further processing.
+    This methods runs indefinitely in a loop until the pipeline
+    is stopped. It starts with directories that match
+    the selection criteria: at most self._max_watch directories,
+    but less if the self._start_limit_hour wait limits are exceeded.
+    Each beam directory scanned individually in a loop.
+    The directory list is updated if necessary on each iteration.
+    Async sleep at the end of every iteration to enable other work. 
 
-    # Now we drop everything that is more than
-    # self._start_limit_hour hours older than the newest directory
-    directories = [val[0] for val in zip(directories, dir_times)
-                   if abs(val[1] - dir_times[-1]) <
-                   self._start_limit_hour * 3600]
+    Parameters:
 
-    dropped = self._max_watch - len(directories)
+      cand_queue: CandQueue
+        Asynchronous candidates queue for detected candidates. Each
+        added candidates is later picked up by the processing pipeline.
 
-    if dropped > 0:
-      logger.info(f"Dropping {dropped} "
-                  + f"{'directories' if dropped > 1 else 'directory'}"
-                  + f" due to the time limit of {self._start_limit_hour}h")
+    Returns:
 
-    dirs_data = [{"dir": idir,
-                  "logs": self._read_logs(idir),
-                  "total_fil": 0,
-                  "new_fil": 0,
-                  "last_file": [0] * len(self._read_logs(idir)),
-                  "total_cands": [0] * len(self._read_logs(idir)),
-                  "new_cands": [0] * len(self._read_logs(idir)),
-                  "last_cand": [0] * len(self._read_logs(idir))}
-                 for idir in directories]
+      None
+
+    """
+
+    dirs_data = self._get_current_dirs()
 
     while True:
 
@@ -171,7 +194,7 @@ class WatchModule(UtilityModule):
 
               if waited >= self._spccl_wait_sec:
                 logger.error("No valid .spccl file after %.2f seconds \
-                             under %d. Will reset filterbank candidates",
+                             under %s. Will reset filterbank candidates",
                              self._spccl_wait_sec, full_dir)
                 last_file[rel_number] = 0
                 continue
@@ -190,7 +213,7 @@ class WatchModule(UtilityModule):
 
               if waited >= self._spccl_wait_sec:
                 logger.error("Empty .spccl file after %.2f seconds \
-                             under %d. Will reset filterbank candidates",
+                             under %s. Will reset filterbank candidates",
                              self._spccl_wait_sec, full_dir)
                 last_file[rel_number] = 0
                 continue
@@ -229,6 +252,7 @@ class WatchModule(UtilityModule):
                   header = self._read_header(ff)
                   header["fil_file"] = ifile[0]
                   header["full_dir"] = full_dir
+                  header["header_size"] = self._fil_header_size
 
                   file_samples = int((ifile[2] - self._fil_header_size)
                                      / header["nchans"])
@@ -242,25 +266,21 @@ class WatchModule(UtilityModule):
                   matched_cands = cands[(cands["MJD"] >= file_start) &
                                         (cands["MJD"] < file_end)]
 
+                  # Bail out early for this file
                   if len(matched_cands) == 0:
                     logger.warning("No candidates found for file %s", file_path)
-
-                  fil_data = fromfile(file_path, dtype='B')[self._fil_header_size:]
-
-                  # We can have a filterbank file being written when
-                  # the pipeline is stopped
-                  time_samples = int(floor(fil_data.size / header["nchans"]))
+                    continue
 
                   cand_dict = {
-                      "data": reshape(fil_data[:(time_samples * header["nchans"])],
-                                      (time_samples, header["nchans"])).T,
+                      "data": None,
                       "fil_metadata": header,
                       "cand_metadata": {},
                       "beam_metadata": ibeam,
                       "time": perf_counter()
                   }
 
-                  for candidx, cand in matched_cands.iterrows():
+                  for _, cand in matched_cands.iterrows():
+
                     cand_metadata = {
                         "mjd": cand["MJD"],
                         "dm": cand["DM"],
@@ -276,18 +296,160 @@ class WatchModule(UtilityModule):
           # Update the newest file times for all the beams
           data["last_file"] = last_file
 
-        logger.debug("Recalculating directories...")
+        logger.info("Recalculating directories...")
+        dirs_data = self._get_current_dirs(dirs_data)
 
         await asyncio.sleep(1)
         logger.debug("Candidate queue size is now %d",
                      cand_queue.qsize())
 
+        # End of try block
+
       except asyncio.CancelledError:
         logger.info("Watcher quitting")
         return
+    
+    # End of while loop
+
+  def _get_current_dirs(self, current_directories: List = []) -> List:
+
+    """
+
+    Methods for getting new directories and their information.
+
+    If new directories appear, the oldest ones are removed from
+    the current directories list.
+    If no new directories are present, the list is kept the same
+    to ensure that the filterbank file and candidate watching
+    stays consistent.
+
+    Parameters:
+
+      current_directories: List, default []
+        List of dictionary that contains the information about current
+        directories being watched. If the list is empty, that implies
+        first run and a new list is returned that contains all the
+        directories that matched our requirements.
+
+    Returns:
+
+      current_directories: List
+        List of directories to be watched. Updated version of what was
+        passed if new directories are present, otherwise the old list
+        is passed through.
+
+    """
+
+    # Oldest directories will be at the start of this list
+    directories = sorted(glob(path.join(self._base_directory, 
+                         "20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_"
+                         + "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*/")))
+
+    # If we ask for more directories than there are present, we will
+    # only get whatever there is
+    directories = directories[-1 * self._max_watch :]
+
+    if len(directories) == 0:
+      logger.info("No directories found under %s", self._base_directory)
+      # Don't bother with any extra work
+      return []
+
+    logger.info("%d directories at the start: %s",
+                len(directories), ", ".join(directories))
+    start_dirs = len(directories)
+
+    if start_dirs < self._max_watch:
+      logger.info("Starting with fewer directories than requested!")
+      logger.info("Using %d directories instead of requested %d",
+                  start_dirs, self._max_watch)
+
+    # Strip all of the directory structure to leave just
+    # the UTC part. Then convert it to time since epoch for every
+    # directory in the list
+    dir_times = [mktime(strptime(val[val[:-1].rfind('/')+1:-1],
+                 "%Y-%m-%d_%H:%M:%S")) for val in directories]
+
+    # Drop everything that is more than self._start_limit_hour hours
+    # older than the newest directory
+    directories = [val[0] for val in zip(directories, dir_times)
+                   if abs(val[1] - dir_times[-1]) <
+                   self._start_limit_hour * 3600]
+
+    dropped = start_dirs - len(directories)
+
+    # This will also fire if there are fewer directories than
+    # we asked to watch
+    if dropped > 0:
+      logger.info(f"Dropping {dropped} "
+                  + f"{'directories' if dropped > 1 else 'directory'}"
+                  + f" due to the time limit of {self._start_limit_hour}h")
+
+    tmp_current = [curr["dir"] for curr in current_directories]
+    # There are some new directories that we need to include
+    # in the list of current watched directories
+    # Or directories were removed due to the time limit
+    if (sorted(directories) != sorted(tmp_current)):
+
+      logger.info("Directories change detected. Updating the watch list...")
+
+      # This is not overly sophisticated way of updating the current
+      # directories list, but it covers all of the age cases in the
+      # least amount of code
+      tmp_current_directories = []
+      for idir in sorted(directories):
+
+        if idir in tmp_current:
+        
+          for icurr in current_directories:
+        
+            if icurr["dir"] == idir:
+              tmp_current_directories.append(icurr)
+              break
+
+        else:
+
+          dir_logs = self._read_logs(idir)
+          num_beams = len(dir_logs)
+
+          tmp_current_directories.append({"dir": idir,
+                  "logs": dir_logs,
+                  "total_fil": 0,
+                  "new_fil": 0,
+                  "last_file": [0] * num_beams,
+                  "total_cands": [0] * num_beams,
+                  "new_cands": [0] * num_beams,
+                  "last_cand": [0] * num_beams})
+
+      current_directories = tmp_current_directories
+
+    return current_directories
 
   def _read_logs(self, directory: str, 
                  log_file: str = "run_summary.json") -> List:
+
+    """
+
+    Read JSON setup for current directory.
+
+    Reads a JSON file which contains the information abotu the current
+    observign run. Currently used to extract beam information.
+
+    Parameters:
+
+      directory: str
+        Base UTC directory where the JSON file can be found. There
+        should be only one such JSON file for UTC directory.
+      
+      log_file: str, default "run_summary.json"
+        Name of the JSON file to be read.
+
+    Returns:
+
+      beam_info: List[Dict]
+        List of dictionaries with the relevant beam information. One
+        dictionary per beam.
+
+    """
 
     beam_info = []
 
@@ -320,12 +482,12 @@ class WatchModule(UtilityModule):
     Parameters:
 
       file: 
-        Filterbank file buffer
+        Filterbank file buffer.
 
     Returns:
 
       header : Dict
-        Dictionary with relevant header values
+        Dictionary with relevant header values.
 
     """
 

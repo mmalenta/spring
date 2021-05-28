@@ -16,6 +16,44 @@ logger = logging.getLogger(__name__)
 
 class PlotModule(UtilityModule):
 
+  """
+
+  Module responsible for plotting candidates that pass earlier
+  processing stages. !!! CURRENTLY REQUIRES A CUDA-CAPABLE GPU !!!
+
+  Creates a plot used for candidate inspection. Currently using a
+  non-configurable plot layout (configurability will be added in the
+  future),
+
+  Parameters:
+
+    config: Dict
+      Module configuration dictionary
+
+  Attributes:
+
+    _plots: List[List[tupele]]
+      Currenty not in use.
+      Plots configuration. Each row of the plot is represented by the
+      inner list. The configuration of the individual plot in that row
+      is represented by the tuple.
+
+    _out_bands: int
+      Number of the output bands in the non-dedispersed and dedisperse
+      Frequency-Time plots
+    
+    _modules: List[str]
+      Used processing modules abbreviations. Displayed on the plot
+      to provide a quick identification of modules that were used
+      to produce given plot.
+
+    _version: str
+      Current pipeline version. Displayed on the plot to provide a
+      quick identification of the pipeline version that was used to
+      produce given plot.
+
+  """
+
   def __init__(self, config: Dict):
     super().__init__()
 
@@ -35,6 +73,110 @@ class PlotModule(UtilityModule):
                 cand_dm, cand_mjd,
                 ftop, fband, nchans, outbands,
                 disp_const, plot_pad_s, tsamp_scaling, thread_x):
+
+    """
+
+    Extracts and pads the data for dedispersion.
+
+    Extracts enough data to cover the whole dispersion sweep in the
+    non-dedispersed frequency-time plot plus additional padding on both
+    sides. If not enough data is present, i.e. candidate detected
+    at the very start or the end of the file, additional padding drawn
+    from random normal distribution is added. This of course can lead
+    to some pulses ending abruptly.
+
+    Parameters:
+
+      inputdata: NumPy Array
+        Filterbank data. Depending on the previous processing steps,
+        it might not be the original raw filterbank file.
+      
+      fil_mjd: float
+        MJD of the start of the filterbank file, as found in the
+        filterbank file header.
+
+      cand_dm: float
+        DM of the candidate, as found in the .spccl file.
+
+      cand_mjd: float
+        MJD of the candidate, as found in the .spccl file.
+
+      ftop: float [MHz]
+        Frequency at the centre of the highest frequency band in the
+        filterbank file, as found in the filterbank file header.
+
+      fband: float [MHz]
+        The width of a single, original (non-averaged) frequency band
+        in the filterbank file, as found in the filterbank file header.
+
+      nchans: int
+        The number of original (non-averaged) frequency channels.
+
+      outbands: int
+        The number of output (averaged) frequency channels.
+        The data is not averaged as such to create output bands. It is
+        first properly dedispersed within the subband of outband
+        channels and then averaged to keep the data quality as high
+        as possible.
+
+      disp_const: float [s / (pc cm^-3)]
+        Dispersion scaling constant that expressed the delay across the
+        whole filterbank file band per unit DM. To get the total delay
+        in seconds, just multiply this constant by the candidate DM
+
+      plot_pad_s: float [s]
+        Length of padding to add at before the candidate start,
+        marked with the candidate detection MJD and after the end of
+        the dispersion sweep. Either 20 times the width of the
+        candidated or 0.5s, whichever is smaller.
+
+      tsamp_scaling: float [1/s]
+        The reciprocal of sampling time.
+
+      thread_x: int
+        The number of CUDA threads per block in the x dimension. This
+        dimension is responsible for processing time samples. We
+        therefore make sure that the number of output samples is an
+        integer multiple of this number to avoid any problems with
+        remainders. Additionally set to the width of the warp so that
+        we can easily use warp-level reduction primitives.
+
+    Returns: 
+
+      use_data: NumPy Array
+        Properly extracted and padded data.
+
+      input_samples: int
+        The number of the time samples in the properly extracted and
+        padded data.
+
+      output_samples_full_dedisp_orig: int
+        The original (non-thread corrected) number of the output time
+        samples in the fully dedispersed data (used for the dedispersed
+        freqiency-time plot and the flattened 'power' plot).
+
+      output_samples_full_dedisp_warp_safe: int
+        The number of the output time samples in the fully dedispersed
+        data (used for the dedispersed freqiency-time plot and the
+        flattened 'power' plot) that is a multiple of the warp size.
+
+      output_samples_sub_dedisp_orig: int
+        The original (non-tread corrected) number of the output time
+        samples in the 'subband' dedispersed data (used for the 
+        dispersion sweep plot).
+
+      output_samples_sub_dedisp_warp_safe: int
+        The number of the output time samples in the 'subband'
+        dedispersed data (used for the dispersion sweep plot) that is a
+        multiple of the warp size.
+
+      start_padding_added: int
+        The number of samples of time padding added at the start of the
+        data array. This is used to properly offset the time axis in
+        all the plots. 0 if no padding was added.
+
+    """
+
     # Every part of the plot has to be an integer multiple of threadblock in the time dimension
     # This ensures we can have an integer number of threadblocks in the time dimension
     dm = cand_dm
@@ -127,6 +269,32 @@ class PlotModule(UtilityModule):
     return use_data, input_samples, output_samples_full_dedisp_orig, output_samples_full_dedisp_warp_safe, output_samples_sub_dedisp_orig, output_samples_sub_dedisp_warp_safe, start_padding_added
 
   async def plot(self, data: Cand) -> None:
+
+    """
+
+    Create the candidate plot and save it.
+
+    Takes the incoming data, applies additional processing to make it
+    fit for plotting, plots it in a (currently) non-configurable plot
+    and saves it. We have chosen a decent-quality JPG files as a
+    compromise between the quality and the size of the plots and save
+    time.
+
+    Parameters:
+
+      data: Dict
+        Dictionary with all the necessary candidate information. 
+        Contains the the array with the filterbank data, filterbank
+        metadata with all the filterbank header information, candidate
+        metadata with all the candidate detection information and beam
+        metadata with the information on the beam where tha candidate
+        was detected.
+
+    Returns:
+
+      None
+
+    """
 
     fil_metadata = data.metadata["fil_metadata"]
     cand_metadata = data.metadata["cand_metadata"]
