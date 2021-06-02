@@ -1,3 +1,5 @@
+import logging
+
 from os import path
 from typing import Dict
 
@@ -6,6 +8,8 @@ from numpy import frombuffer, fromfile, uint8
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
+
+logger = logging.getLogger(__name__)
 
 class ArchiveModule(UtilityModule):
 
@@ -72,6 +76,7 @@ class ArchiveModule(UtilityModule):
     fmtdm = "{:.2f}".format(cand_metadata["dm"]) 
     file_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
                 str(beam_metadata["beam_abs"]) + beam_metadata["beam_type"] + '_frbid.hdf5'
+    logger.debug("Creating archive %s", file_name)
 
     with h5.File(path.join(fil_metadata["full_dir"], file_name), 'w') as h5f:
 
@@ -97,6 +102,8 @@ class ArchiveModule(UtilityModule):
       # original format to avoid any need for extra conversion or
       # combining of header and data chunks of the file
       if save_fil_data:
+        logger.debug("Adding filterbank file %s to the archive",
+                      fil_metadata["fil_file"])
         file_path = path.join(fil_metadata["full_dir"],
                             fil_metadata["fil_file"])
 

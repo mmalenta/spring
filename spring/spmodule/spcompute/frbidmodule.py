@@ -166,12 +166,14 @@ class FrbidModule(ComputeModule):
 
     logger.info("Label %d with probability of %.4f", label, prob)
 
-    self._data.metadata["cand_metadata"]["label"] = label
-    self._data.metadata["cand_metadata"]["prob"] = prob
+    cand_metadata = self._data.metadata["cand_metadata"]
 
-    await self._out_queue.put(self._data)
+    cand_metadata["label"] = label
+    cand_metadata["prob"] = prob
 
-    if label > 0.0:
+    # Send the data to clustering only if the candidate is labelled
+    # as probable and is not a known source
+    if label > 0.0 and not cand_metadata["known"]:
       message = {
         "dm": self._data.metadata["cand_metadata"]["dm"],
         "mjd": self._data.metadata["cand_metadata"]["mjd"],
@@ -187,6 +189,10 @@ class FrbidModule(ComputeModule):
       self._channel.basic_publish(exchange="post_processing",
                                   routing_key="clustering",
                                   body=dumps(message))
+    # If the candidate is not labelled as probable or is a known source
+    # then send directly to archiving
+    else:
+      await self._out_queue.put(self._data)
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 

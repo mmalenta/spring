@@ -285,7 +285,8 @@ class WatchModule(UtilityModule):
                         "mjd": cand["MJD"],
                         "dm": cand["DM"],
                         "width": cand["Width"],
-                        "snr": cand["SNR"]
+                        "snr": cand["SNR"],
+                        "known": False
                     }
 
                     cand_dict["cand_metadata"] = cand_metadata

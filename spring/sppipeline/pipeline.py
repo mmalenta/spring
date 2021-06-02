@@ -6,6 +6,7 @@ from time import perf_counter, sleep
 from typing import Dict
 
 import cupy as cp
+import pika
 
 from numpy import array, float32, ones
 
@@ -226,8 +227,11 @@ class Pipeline:
         cand_data = await final_queue.get()
         logger.debug(cand_data.metadata)
 
+        save_fil_data = (cand_data.metadata["cand_metadata"]["label"] or
+                          cand_data.metadata["cand_metadata"]["known"])
+
         await self._plot_module.plot(cand_data)
-        await self._archive_module.archive(cand_data)
+        await self._archive_module.archive(cand_data, save_fil_data)
 
       except asyncio.CancelledError:
         logger.info("Computing has been finalised")
