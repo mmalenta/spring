@@ -35,6 +35,7 @@ class ZerodmModule(ComputeModule):
 
     super().__init__()
     self.id = 40
+    self.type = "M"
     logger.info("ZeroDM module initialised")
 
 

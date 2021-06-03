@@ -54,6 +54,7 @@ class KnownModule(ComputeModule):
 
     super().__init__()
     self.id = 0
+    self.type = "V"
 
     print(config)
 

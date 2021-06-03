@@ -33,6 +33,7 @@ class IqrmModule(ComputeModule):
 
     super().__init__()
     self.id = 10
+    self.type = "M"
     logger.info("IQRM module initialised")
 
 
@@ -56,9 +57,6 @@ class IqrmModule(ComputeModule):
       None
 
     """
-
-    if self._data.data is None:
-      self._read_filterbank()
 
     logger.debug("IQRM module starting processing")
     iqrm_start = perf_counter()

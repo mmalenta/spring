@@ -1,7 +1,10 @@
 import asyncio
 import logging
 
+from json import loads
+from multiprocessing import Process
 from os import path
+from socket import gethostname
 from time import perf_counter, sleep
 from typing import Dict
 
@@ -13,6 +16,7 @@ from numpy import array, float32, ones
 from spmodule.sputility.watchmodule import WatchModule
 from spmodule.sputility.plotmodule import PlotModule
 from spmodule.sputility.archivemodule import ArchiveModule
+from sppipeline.filmanager import FilManager
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateQueue as CandQueue
 
@@ -69,6 +73,13 @@ class Pipeline:
       stages from the _module_queue pipeline are pushed and are later
       picked up by the plot and archive modules.
 
+    _manager: FilManager
+      Filterbank data table manager. Use to properly share the data
+      between compute and plotting/archiving processes.
+
+    _fil_table: FilDataTable
+      The underlying class that manager shares between the processes.
+
   """
   def __init__(self, config: Dict):
     
@@ -84,14 +95,22 @@ class Pipeline:
     self._plot_module = PlotModule(config["plots"])
     self._archive_module = ArchiveModule(config)
 
-    self._module_queue = ComputeQueue(config["modules"])
+    self._manager = FilManager()
+    self._manager.start()
+    self._fil_table = self._manager.FilData()
+    self._fil_table.test()
+
+    self._module_queue = ComputeQueue(config["modules"], self._fil_table)
     self._candidate_queue = CandQueue()
     self._final_queue = CandQueue()
+
+
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
 
     self._module_queue["frbid"].set_out_queue(self._final_queue)
+    
     cp.cuda.Device(0).use()
 
   async def _listen(self, reader, writer) -> None:
@@ -197,7 +216,7 @@ class Pipeline:
         logger.info("Compute modules quitting")
         return
 
-  async def _finalise(self, final_queue) -> None:
+  def _finalise(self, final_queue) -> None:
 
     """
 
@@ -220,6 +239,8 @@ class Pipeline:
 
     """
 
+    """
+
     while True:
 
       try:
@@ -237,6 +258,24 @@ class Pipeline:
         logger.info("Computing has been finalised")
         return
 
+    """
+
+    def ack(ch, method, properties, body):
+
+      print("Received the message")
+      print(loads(body.decode("utf-8")))
+      ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+    channel = connection.channel()
+
+    hostname = gethostname()
+
+    channel.queue_declare("archiving_" + hostname)
+    channel.queue_bind("archiving_" + hostname, "post_processing")
+    channel.basic_consume(queue="archiving_" + hostname, auto_ack=False,
+                          on_message_callback=ack)
+    channel.start_consuming()
 
   async def run(self, loop: asyncio.AbstractEventLoop) -> None:
     """
@@ -259,14 +298,19 @@ class Pipeline:
 
     watcher = loop.create_task(self._watch_module.watch(self._candidate_queue))
     computer = loop.create_task(self._process(self._candidate_queue))
-    finaliser = loop.create_task(self._finalise(self._final_queue))
+    #finaliser = loop.create_task(self._finalise(self._final_queue))
     listener = loop.create_task(asyncio.start_server(self._listen,
                                 "127.0.0.1", 9999))
 
-    await asyncio.gather(listener, watcher, computer, finaliser)
+    finiliser = Process(target=self._finalise, args=(self._final_queue,))
+    finiliser.start()
+
+    #await asyncio.gather(listener, watcher, computer, finaliser)
+    await asyncio.gather(listener, watcher, computer)
 
     logger.info("Finishing the processing...")
     loop.stop()
+    finiliser.join()
 
   def stop(self, loop: asyncio.AbstractEventLoop) -> None:
     """

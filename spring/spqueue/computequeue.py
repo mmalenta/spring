@@ -38,7 +38,7 @@ class ComputeQueue:
 
   """
 
-  def __init__(self, modules: List[str]):
+  def __init__(self, modules: List[str], fil_table):
 
     # Having FRBID in this list is a bit redundand
     # as it is a requirement to provide a valid configuration
@@ -46,6 +46,8 @@ class ComputeQueue:
     self._required = ["candmaker", "frbid"]
     self._queue = []
     self._idx = 0
+
+    self._fil_table = fil_table
 
     module_names = [module[0] for module in modules]
 
@@ -114,10 +116,20 @@ class ComputeQueue:
     if self._idx < len(self._queue):
 
       if self._idx != 0:
-        logger.debug("Sending the data to the next module...")
+        logger.info("Sending the data to the next module...")
         self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
 
       self._idx = self._idx + 1
+      logger.info("Module %d starting processing", self._idx)
+      logger.info("Module type %s", self._queue[self._idx - 1].type)
+
+      if (self._queue[self._idx - 1].type == "M" and 
+          self._queue[self._idx - 1]._data.data is None):
+
+          logger.info("Module will now read the filterbank data")
+          self._queue[self._idx - 1].read_filterbank(self._fil_table)
+
+
       return self._queue[self._idx - 1]
 
     raise StopIteration

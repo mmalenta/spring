@@ -30,11 +30,23 @@ class ComputeModule(Module):
   This is linked to how module names and their corresponding
   command-line names are processed when added to the processing queue.
 
+  Attributes:
+
+    _type: str
+      Type of the compute module: "V" for vetting - does some
+      classification on the data and does not change the underlying
+      data; "M" for mutating - actually changes the data that is sent
+      to it. First module marked with "M" is responsible for reading
+      in the filterbank file data. This is to prevent the pipeline
+      reading in the data unnecessarily from candidates that do not
+      pass the initial vetting, e.g. known source matching.
+
   """
   def __init__(self):
 
     super().__init__()
     self._data = array([])
+    self.type = None
     self.id = 0
 
   def initialise(self, indata: Cand) -> None:
@@ -60,7 +72,7 @@ class ComputeModule(Module):
 
     self.set_input(indata)
 
-  def _read_filterbank(self) -> None:
+  def read_filterbank(self, fil_table) -> None:
 
     """
 
@@ -81,8 +93,11 @@ class ComputeModule(Module):
 
     """
 
-    fil_metadata = self._data.metadata["fil_metadata"]
 
+    fil_metadata = self._data.metadata["fil_metadata"]
+    self._data.data = fil_table.add_candidate(fil_metadata)
+
+    """
     # Read the data now - only if the data is actually going to be
     # processed by the subsequent stages
     file_path = path.join(fil_metadata["full_dir"],
@@ -99,6 +114,7 @@ class ComputeModule(Module):
                         (time_samples, nchans)).astype(float32).T
 
     self._data.data = fil_data
+    """
 
   def set_input(self, indata: Cand) -> None:
 
@@ -126,7 +142,7 @@ class ComputeModule(Module):
 
     """
 
-    Provide the data that the give module finished workign on.
+    Provide the data that the give module finished working on.
 
     Used by the compute queue to get the data from the module and pass
     it to the next one.

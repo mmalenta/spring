@@ -3,6 +3,7 @@ import pika
 
 from json import dumps
 from os import path
+from socket import gethostname
 from time import perf_counter, time
 from typing import Dict
 
@@ -59,6 +60,7 @@ class FrbidModule(ComputeModule):
 
     super().__init__()
     self.id = 60
+    self.type = "M"
     
     tf_config = ConfigProto()
     tf_config.gpu_options.per_process_gpu_memory_fraction = 0.25 # pylint: disable=no-member
@@ -182,13 +184,15 @@ class FrbidModule(ComputeModule):
         "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
         "ra": self._data.metadata["beam_metadata"]["beam_ra"],
         "dec":	self._data.metadata["beam_metadata"]["beam_dec"],
-        "time_sent": time()
+        "time_sent": time(),
+        "hostname": gethostname()
       }
 
       logger.debug("Sending the data")
       self._channel.basic_publish(exchange="post_processing",
                                   routing_key="clustering",
                                   body=dumps(message))
+
     # If the candidate is not labelled as probable or is a known source
     # then send directly to archiving
     else:
