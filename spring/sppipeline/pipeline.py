@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from json import loads
-from multiprocessing import Process
+from multiprocessing import Process, Manager
 from os import path
 from socket import gethostname
 from time import perf_counter, sleep
@@ -89,30 +89,27 @@ class Pipeline:
     self._watch_module = WatchModule(config["base_directory"],
                                         config["num_watchers"])
 
-    # For now we keep them as separate modules
-    # Might developed into full 'post' queue like with the processing
-    # if we want to enable/disable different modules
     self._plot_module = PlotModule(config["plots"])
     self._archive_module = ArchiveModule(config)
 
-    self._manager = FilManager()
-    self._manager.start()
-    self._fil_table = self._manager.FilData()
-    self._fil_table.test()
+    self._fil_manager = FilManager()
+    self._fil_manager.start()
+    self._fil_table = self._fil_manager.FilData()
+
+    self._cand_manager = Manager()
+    self._cand_table = self._cand_manager.dict()
 
     self._module_queue = ComputeQueue(config["modules"], self._fil_table)
     self._candidate_queue = CandQueue()
-    self._final_queue = CandQueue()
-
+    #self._final_queue = CandQueue()
 
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
 
-    self._module_queue["frbid"].set_out_queue(self._final_queue)
+    #self._module_queue["frbid"].set_out_queue(self._final_queue)
+    self._module_queue["frbid"].set_out_queue(self._cand_table)
     
-    cp.cuda.Device(0).use()
-
   async def _listen(self, reader, writer) -> None:
 
     """
@@ -216,7 +213,7 @@ class Pipeline:
         logger.info("Compute modules quitting")
         return
 
-  def _finalise(self, final_queue) -> None:
+  def _finalise(self, cand_table, fil_table, plot_module, archive_module) -> None:
 
     """
 
@@ -262,9 +259,18 @@ class Pipeline:
 
     def ack(ch, method, properties, body):
 
-      print("Received the message")
-      print(loads(body.decode("utf-8")))
+      message = loads(body.decode("utf-8"))
       ch.basic_ack(delivery_tag=method.delivery_tag)
+
+      cand_data = cand_table[message["cand_hash"]]
+      save_fil_data = (cand_data.metadata["cand_metadata"]["label"] or
+                          cand_data.metadata["cand_metadata"]["known"])
+
+      # We need the filterbank data for the plotting
+      cand_data.data = fil_table.remove_candidate(cand_data.metadata["fil_metadata"])
+
+      plot_module.plot(cand_data)
+      archive_module.archive(cand_data, save_fil_data)
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     channel = connection.channel()
@@ -302,7 +308,10 @@ class Pipeline:
     listener = loop.create_task(asyncio.start_server(self._listen,
                                 "127.0.0.1", 9999))
 
-    finiliser = Process(target=self._finalise, args=(self._final_queue,))
+    finiliser = Process(target=self._finalise, args=(self._cand_table,
+                                                      self._fil_table,
+                                                      self._plot_module,
+                                                      self._archive_module))
     finiliser.start()
 
     #await asyncio.gather(listener, watcher, computer, finaliser)

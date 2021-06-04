@@ -268,7 +268,7 @@ class PlotModule(UtilityModule):
 
     return use_data, input_samples, output_samples_full_dedisp_orig, output_samples_full_dedisp_warp_safe, output_samples_sub_dedisp_orig, output_samples_sub_dedisp_warp_safe, start_padding_added
 
-  async def plot(self, data: Cand) -> None:
+  def plot(self, data: Cand) -> None:
 
     """
 
@@ -358,7 +358,7 @@ class PlotModule(UtilityModule):
     use_data, input_samples, full_dedisp_samples_orig, \
       full_dedisp_samples_gpu, sub_dedisp_samples_orig, \
       sub_dedisp_samples_gpu, skip_samples = \
-      self._pad_data(data.data, fil_metadata["mjd"],
+      self._pad_data(data.data["data"], fil_metadata["mjd"],
                      cand_metadata['dm'], cand_metadata['mjd'],
                      ftop, fband, nchans, self._out_bands,
                      disp_const, plot_pad_s, tsamp_scaling, thread_x)

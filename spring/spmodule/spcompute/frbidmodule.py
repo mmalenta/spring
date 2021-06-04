@@ -173,6 +173,15 @@ class FrbidModule(ComputeModule):
     cand_metadata["label"] = label
     cand_metadata["prob"] = prob
 
+    # We add everything to the archiving
+    cand_hash = str(hash(str(cand_metadata["dm"]) + str(cand_metadata["mjd"])
+                      + str(self._data.metadata["beam_metadata"]["beam_abs"])))
+
+    cand_metadata["cand_hash"] = cand_hash
+    # No need to store the filterbank file data
+    self._data.data = None
+    self._out_queue[cand_hash] = self._data
+
     # Send the data to clustering only if the candidate is labelled
     # as probable and is not a known source
     if label > 0.0 and not cand_metadata["known"]:
@@ -184,6 +193,7 @@ class FrbidModule(ComputeModule):
         "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
         "ra": self._data.metadata["beam_metadata"]["beam_ra"],
         "dec":	self._data.metadata["beam_metadata"]["beam_dec"],
+        "cand_hash": cand_hash,
         "time_sent": time(),
         "hostname": gethostname()
       }
@@ -196,7 +206,12 @@ class FrbidModule(ComputeModule):
     # If the candidate is not labelled as probable or is a known source
     # then send directly to archiving
     else:
-      await self._out_queue.put(self._data)
+      message = {
+        "cand_hash": cand_hash
+      }
+      self._channel.basic_publish(exchange="post_processing",
+                                  routing_key="archiving_" + gethostname(),
+                                  body=dumps(message))
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 

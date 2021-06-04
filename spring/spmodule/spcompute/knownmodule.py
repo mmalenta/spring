@@ -56,8 +56,6 @@ class KnownModule(ComputeModule):
     self.id = 0
     self.type = "V"
 
-    print(config)
-
     if (config == None) or not config:
       self._catalogue = "psrcat"
       self._thresh_dist = 1.5

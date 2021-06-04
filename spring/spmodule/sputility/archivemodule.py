@@ -45,7 +45,7 @@ class ArchiveModule(UtilityModule):
   def __init__(self, config: Dict):
     super().__init__()
 
-  async def archive(self, cand: Cand, save_fil_data = False) -> None:
+  def archive(self, cand: Cand, save_fil_data = False) -> None:
 
     """
 
@@ -76,7 +76,7 @@ class ArchiveModule(UtilityModule):
     fmtdm = "{:.2f}".format(cand_metadata["dm"]) 
     file_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
                 str(beam_metadata["beam_abs"]) + beam_metadata["beam_type"] + '_frbid.hdf5'
-    logger.debug("Creating archive %s", file_name)
+    logger.info("Creating archive %s", file_name)
 
     with h5.File(path.join(fil_metadata["full_dir"], file_name), 'w') as h5f:
 

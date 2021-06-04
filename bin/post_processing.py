@@ -125,7 +125,6 @@ def main():
 
   """
 
-
   parser = ap.ArgumentParser(description="MeerTRAP real-time post-processing \
                                           pipeline",
                               usage="%(prog)s [options]",
