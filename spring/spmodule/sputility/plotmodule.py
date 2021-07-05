@@ -4,7 +4,9 @@ import matplotlib.gridspec as gs
 import matplotlib.pyplot as plt
 import pkg_resources
 
-from numpy import arange, ceil, float32, floor, int32, linspace, log10, max as npmax, mean, min as npmin, newaxis, random, reshape, std, sum as npsum, zeros
+from numpy import append, arange, ceil, float32, floor, int32, linspace, log10
+from numpy import max as npmax, mean, min as npmin, newaxis, random, reshape
+from numpy import std, sum as npsum, zeros
 from os import mkdir, path
 from time import perf_counter
 from typing import Dict
@@ -323,6 +325,19 @@ class PlotModule(UtilityModule):
     # and it is averaged
     # TODO: pass the average value rather than recalculate it
     time_avg = int(width_samp / 2) if width_samp > 1 else 1
+
+    # Recreate what candmaker is doing - we no longer get the averaged
+    # data
+    fil_samp = data.data["data"].shape[1]
+    avg_padding_required = int(ceil(fil_samp / time_avg) * time_avg - fil_samp)
+
+    data.data["data"] = append(data.data["data"], 
+                              data.data["data"][:, -1 * avg_padding_required :],
+                              axis=1)
+
+    data.data["data"] = data.data["data"].reshape(nchans,
+                        -1, time_avg).sum(axis=2) / time_avg
+
     tsamp = tsamp * time_avg
     tsamp_scaling = 1.0 / tsamp
 

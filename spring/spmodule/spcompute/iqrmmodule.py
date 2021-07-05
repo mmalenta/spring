@@ -33,7 +33,7 @@ class IqrmModule(ComputeModule):
 
     super().__init__()
     self.id = 10
-    self.type = "M"
+    self.type = "C"
     logger.info("IQRM module initialised")
 
 

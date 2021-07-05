@@ -67,6 +67,7 @@ class CandmakerModule(ComputeModule):
 
     super().__init__()
     self.id = 50
+    self.type = "P"
     # Output padding on each side of the candidate
     self._time_padding = 128
     self._time_samples = 256
@@ -135,9 +136,6 @@ class CandmakerModule(ComputeModule):
       None
 
     """
-
-    if self._data.data is None:
-      self._read_filterbank()
 
     cand_metadata = self._data.metadata["cand_metadata"]
     fil_metadata = self._data.metadata["fil_metadata"]

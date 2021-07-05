@@ -120,7 +120,7 @@ class FilDataTable:
       logger.info("Filterbank %s already exists in the data table", 
                   filterbank["fil_file"])
       self._data[filterbank["fil_file"]]["ref_counter"] += 1
-      return self._data[filterbank["fil_file"]]["data"]
+      return (self._data[filterbank["fil_file"]]["data"], "clean")
 
     else:
 
@@ -151,7 +151,7 @@ class FilDataTable:
                       self._current_size,
                       self._current_size / 1024.0 / 1024.0)
 
-        return self._data[filterbank["fil_file"]]["data"]
+        return (self._data[filterbank["fil_file"]]["data"], "orig")
 
       else:
 
@@ -161,7 +161,24 @@ class FilDataTable:
         # Don't put any entries in the data table
         # Just return the data - every candidate will have to read the
         # data, same goes for the archive
-        return fil_data
+        return (fil_data, "orig")
+
+
+  def update_data(self, filterbank):
+
+
+    if filterbank.metadata["fil_metadata"]["fil_file"] in self._data:
+
+      logger.debug("Updating filterbank %s to its cleaned version",
+                  filterbank.metadata["fil_metadata"]["fil_file"])
+
+      self._data[filterbank.metadata["fil_metadata"]["fil_file"]]["data"] = filterbank.data
+
+    else:
+
+      logger.debug("Filterbank %s not present in the data table",
+                  filterbank.metadata["fil_metadata"]["fil_file"])
+      logger.debug("Will not updated it to its cleaned version")
 
   def remove_candidate(self, filterbank):
 

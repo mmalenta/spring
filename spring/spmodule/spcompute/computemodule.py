@@ -1,9 +1,9 @@
 import logging
 
-from os import path
+from copy import deepcopy
 from typing import Dict
 
-from numpy import array, float32, floor, fromfile, logical_not, newaxis, reshape
+from numpy import logical_not, newaxis
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.module import Module
@@ -34,18 +34,17 @@ class ComputeModule(Module):
 
     _type: str
       Type of the compute module: "V" for vetting - does some
-      classification on the data and does not change the underlying
-      data; "M" for mutating - actually changes the data that is sent
-      to it. First module marked with "M" is responsible for reading
-      in the filterbank file data. This is to prevent the pipeline
-      reading in the data unnecessarily from candidates that do not
-      pass the initial vetting, e.g. known source matching.
+      classification and does not change the underlying data;
+      "C" for cleaning - responsible for cleaning the data,
+      expected to work on the entire file, so not candidate-dependent;
+      "P" for processing - processed the data based on the candidate
+      information.
 
   """
   def __init__(self):
 
     super().__init__()
-    self._data = array([])
+    self._data = None
     self.type = None
     self.id = 0
 
@@ -95,7 +94,10 @@ class ComputeModule(Module):
 
 
     fil_metadata = self._data.metadata["fil_metadata"]
-    self._data.data = fil_table.add_candidate(fil_metadata)
+    
+    tmp_data = fil_table.add_candidate(fil_metadata)
+    self._data.data = tmp_data[0]
+    return tmp_data[1]
 
     """
     # Read the data now - only if the data is actually going to be
@@ -136,7 +138,7 @@ class ComputeModule(Module):
 
     """
 
-    self._data = indata
+    self._data = deepcopy(indata)
 
   def get_output(self) -> Cand:
 

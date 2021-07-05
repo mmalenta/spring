@@ -47,6 +47,7 @@ class ComputeQueue:
     self._queue = []
     self._idx = 0
 
+    self._data_state = None
     self._fil_table = fil_table
 
     module_names = [module[0] for module in modules]
@@ -61,7 +62,22 @@ class ComputeQueue:
       # Follow the naming convention described in the
       # ComputeModule class docstring
       self._queue.append(getattr(getattr(cm, module[0] + "module"), module[0].capitalize() + "Module")(module[1]))
-      self._queue.sort(key=lambda val: val.id)
+      
+    self._queue.sort(key=lambda val: val.id)
+
+    self._first_c_idx = self._find_module_type_idx("C")
+    self._first_p_idx = self._find_module_type_idx("P")
+
+    logger.info("First Cleaning module index: %d", self._first_c_idx)
+    logger.info("First Processing module index: %d", self._first_p_idx)
+
+  def _find_module_type_idx(self, type: str) -> int:
+
+    for imodule in range(len(self._queue)):
+      if self._queue[imodule].type == type:
+        return imodule
+
+    return -1
 
   def __iter__(self):
 
@@ -115,23 +131,55 @@ class ComputeQueue:
 
     if self._idx < len(self._queue):
 
-      if self._idx != 0:
-        logger.info("Sending the data to the next module...")
-        self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
+      run_idx = self._idx
 
-      self._idx = self._idx + 1
-      logger.info("Module %d starting processing", self._idx)
-      logger.info("Module type %s", self._queue[self._idx - 1].type)
+      logger.debug("Sending the data to the next module...")
 
-      if (self._queue[self._idx - 1].type == "M" and 
-          self._queue[self._idx - 1]._data.data is None):
+      # First cleaning module - need to read the data
+      if self._idx == self._first_c_idx:
 
-          logger.info("Module will now read the filterbank data")
-          self._queue[self._idx - 1].read_filterbank(self._fil_table)
+        logger.debug("Running the first cleaning module")
 
+        if self._idx != 0:
+          self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
+          
+        self._data_state = self._queue[self._idx].read_filterbank(self._fil_table)
 
-      return self._queue[self._idx - 1]
+        # Decide which module to call next, depending on the state of
+        # the filterbank data in the data table.
+        # If the data is marked as cleaned, that means it was processed
+        # with the previous candidate and all the cleaning has been
+        # applied - skip the cleaning then and proceed to processing
+        if self._data_state == "clean":
+          run_idx = self._first_p_idx
+          # Correctly set up the data for the first module
+          # This will contain the metadata and the filterbank data
+          # read above
+          self._queue[run_idx].set_input(self._queue[self._idx].get_output())
+        # If the data was not there and we get the origina filterbank
+        # fiele, proceed as normal to cleaning
+        else: 
+          run_idx = self._idx
+          # No need to read anything here - the metadata was passed
+          # and the filterbank was read into the correct module above
 
+      else:
+
+        # We need to update the filterbank data to its cleaned version
+        if self._idx == self._first_p_idx:
+          self._fil_table.update_data(self._queue[self._idx - 1].get_output())
+
+        # Move to the next module
+        if self._idx != 0:
+          self._queue[run_idx].set_input(self._queue[self._idx - 1].get_output())
+
+      self._idx = run_idx + 1
+      logger.debug("Module %d starting processing", self._idx)
+      logger.debug("Module type %s", self._queue[run_idx].type)
+
+      return self._queue[run_idx]
+
+    self._data_state = None
     raise StopIteration
 
   def __contains__(self, item: str) -> bool:
@@ -175,7 +223,6 @@ class ComputeQueue:
     if isinstance(idx, str):
       for module in self._queue:
         if isinstance(module, getattr(getattr(cm, idx + "module"), idx.capitalize() + "Module")):
-          print("Found module " + idx)
           return module
 
     raise IndexError
