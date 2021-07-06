@@ -232,7 +232,7 @@ class FrbidModule(ComputeModule):
         self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
         self._channel = self._connection.channel()
         self._channel.basic_publish(exchange="post_processing",
-                                    routing_key="clustering",
+                                    routing_key="archiving_" + gethostname(),
                                     body=dumps(message))
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
