@@ -1,14 +1,12 @@
 import asyncio
 import logging
 
-from astropy.coordinates import SkyCoord
-from astropy.units import hourangle as ap_ha, deg as ap_deg
 from glob import glob
 from json import load
-from numpy import floor, fromfile, reshape
 from os import path, scandir, stat
 from pandas import read_csv
 from struct import unpack
+from retry.api import retry_call
 from time import mktime, perf_counter, strptime
 from typing import Dict, List
 
@@ -409,17 +407,33 @@ class WatchModule(UtilityModule):
 
         else:
 
-          dir_logs = self._read_logs(idir)
-          num_beams = len(dir_logs)
+          # Try getting the run_summary.json file for a full minute
+          try:
 
-          tmp_current_directories.append({"dir": idir,
-                  "logs": dir_logs,
-                  "total_fil": 0,
-                  "new_fil": 0,
-                  "last_file": [0] * num_beams,
-                  "total_cands": [0] * num_beams,
-                  "new_cands": [0] * num_beams,
-                  "last_cand": [0] * num_beams})
+            dir_logs = retry_call(self._read_logs, fargs=[idir],
+                                  exceptions=FileNotFoundError,
+                                  tries=12,
+                                  delay=5,
+                                  logger=logger)
+            num_beams = len(dir_logs)
+
+            tmp_current_directories.append({"dir": idir,
+                    "logs": dir_logs,
+                    "total_fil": 0,
+                    "new_fil": 0,
+                    "last_file": [0] * num_beams,
+                    "total_cands": [0] * num_beams,
+                    "new_cands": [0] * num_beams,
+                    "last_cand": [0] * num_beams})
+
+          except FileNotFoundError:
+            # TODO: Currently we just skip this directory in the current
+            # watcher loop iteration. Prevent the watcher from using
+            # using this directory at all - if the file doesn't appear
+            # after one minute, it is highly unlikely it will appear at
+            # all
+            logger.error("Did not find a run_summary.json file in %s",
+                          idir)
 
       current_directories = tmp_current_directories
 
