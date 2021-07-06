@@ -199,9 +199,21 @@ class FrbidModule(ComputeModule):
       }
 
       logger.debug("Sending the data")
-      self._channel.basic_publish(exchange="post_processing",
-                                  routing_key="clustering",
-                                  body=dumps(message))
+
+      try:
+        self._channel.basic_publish(exchange="post_processing",
+                                    routing_key="clustering",
+                                    body=dumps(message))
+
+      # This is less than ideal, but anything more requires time we do
+      # not currently have
+      except:
+        logger.error("Resetting the lost RabbitMQ connection")
+        self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+        self._channel = self._connection.channel()
+        self._channel.basic_publish(exchange="post_processing",
+                                    routing_key="clustering",
+                                    body=dumps(message))
 
     # If the candidate is not labelled as probable or is a known source
     # then send directly to archiving
@@ -209,9 +221,19 @@ class FrbidModule(ComputeModule):
       message = {
         "cand_hash": cand_hash
       }
-      self._channel.basic_publish(exchange="post_processing",
-                                  routing_key="archiving_" + gethostname(),
-                                  body=dumps(message))
+
+      try:
+        self._channel.basic_publish(exchange="post_processing",
+                                    routing_key="archiving_" + gethostname(),
+                                    body=dumps(message))
+
+      except:
+        logger.error("Resetting the lost RabbitMQ connection")
+        self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+        self._channel = self._connection.channel()
+        self._channel.basic_publish(exchange="post_processing",
+                                    routing_key="clustering",
+                                    body=dumps(message))
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 
