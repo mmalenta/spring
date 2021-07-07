@@ -277,7 +277,7 @@ class Pipeline:
 
     hostname = gethostname()
 
-    channel.queue_declare("archiving_" + hostname)
+    channel.queue_declare("archiving_" + hostname, durable=True)
     channel.queue_bind("archiving_" + hostname, "post_processing")
     channel.basic_consume(queue="archiving_" + hostname, auto_ack=False,
                           on_message_callback=ack)
