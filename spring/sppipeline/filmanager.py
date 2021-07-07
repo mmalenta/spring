@@ -115,17 +115,22 @@ class FilDataTable:
 
     """
 
-    if filterbank["fil_file"] in self._data:
+    # We can't rely on the filterbank file name only
+    # We need beam information as well - the same filterbank file name
+    # can be present in multiple beams
+    full_name = filterbank["fil_file"] + "_" \
+                + filterbank["full_dir"].split('/')[-1]
+
+    if full_name in self._data:
       
       logger.info("Filterbank %s already exists in the data table", 
-                  filterbank["fil_file"])
-      self._data[filterbank["fil_file"]]["ref_counter"] += 1
-      return (self._data[filterbank["fil_file"]]["data"], "clean")
+                  full_name)
+      self._data[full_name]["ref_counter"] += 1
+      return (self._data[full_name]["data"], "clean")
 
     else:
 
-      logger.info("Reading filterbank %s into the data table", 
-                  filterbank["fil_file"])
+      logger.info("Reading filterbank %s into the data table", full_name)
 
       fil_data = self._read_filterbank(filterbank["full_dir"],
                                         filterbank["fil_file"])
@@ -140,7 +145,7 @@ class FilDataTable:
                         (time_samples, nchans)).astype(float32).T
 
       if self._current_size + fil_data.size <= self._size_limit:
-        self._data[filterbank["fil_file"]] = {"header": fil_header,
+        self._data[full_name] = {"header": fil_header,
                                             "data": fil_data,
                                             "ref_counter": 1}
       
@@ -151,13 +156,13 @@ class FilDataTable:
                       self._current_size,
                       self._current_size / 1024.0 / 1024.0)
 
-        return (self._data[filterbank["fil_file"]]["data"], "orig")
+        return (self._data[full_name]["data"], "orig")
 
       else:
 
         logger.warning("Exceeded the allowed size of the data table!")
         logger.warning("Filterbank %s will not be put in the data table!",
-                        filterbank["fil_file"])
+                        full_name)
         # Don't put any entries in the data table
         # Just return the data - every candidate will have to read the
         # data, same goes for the archive
@@ -166,19 +171,21 @@ class FilDataTable:
 
   def update_data(self, filterbank):
 
+    full_name = filterbank.metadata["fil_metadata"]["fil_file"] + "_" \
+                + filterbank.metadata["fil_metadata"]["full_dir"].split('/')[-1]
 
-    if filterbank.metadata["fil_metadata"]["fil_file"] in self._data:
+    if full_name in self._data:
 
       logger.debug("Updating filterbank %s to its cleaned version",
-                  filterbank.metadata["fil_metadata"]["fil_file"])
+                    full_name)
 
-      self._data[filterbank.metadata["fil_metadata"]["fil_file"]]["data"] = filterbank.data
+      self._data[full_name]["data"] = filterbank.data
 
     else:
 
       logger.debug("Filterbank %s not present in the data table",
-                  filterbank.metadata["fil_metadata"]["fil_file"])
-      logger.debug("Will not updated it to its cleaned version")
+                    full_name)
+      logger.debug("Will not update it to its cleaned version")
 
   def remove_candidate(self, filterbank):
 
@@ -209,21 +216,24 @@ class FilDataTable:
 
     """
 
-    if filterbank["fil_file"] in self._data:
+    full_name = filterbank["fil_file"] + "_" \
+                + filterbank["full_dir"].split('/')[-1]
+
+    if full_name in self._data:
 
       logger.info("Filterbank %s in the data table", 
-                  filterbank["fil_file"])
+                  full_name)
 
-      if self._data[filterbank["fil_file"]]["ref_counter"] == 1:
+      if self._data[full_name]["ref_counter"] == 1:
         logger.info("Removing filterbank %s from the data table", 
-                    filterbank["fil_file"])
-        self._current_size -= self._data[filterbank["fil_file"]]["data"].size
+                    full_name)
+        self._current_size -= self._data[full_name]["data"].size
         # Copy the data before we actually remove it
-        fil_data = {"header": self._data[filterbank["fil_file"]]["header"],
-                    "data": self._data[filterbank["fil_file"]]["data"]}
+        fil_data = {"header": self._data[full_name]["header"],
+                    "data": self._data[full_name]["data"]}
 
-        self._data[filterbank["fil_file"]] = None
-        del self._data[filterbank["fil_file"]]
+        self._data[full_name] = None
+        del self._data[full_name]
 
         logger.info("Current data table size: %dB/%.2fMiB",
                       self._current_size,
@@ -232,15 +242,15 @@ class FilDataTable:
 
       else:
 
-        self._data[filterbank["fil_file"]]["ref_counter"] -= 1
+        self._data[full_name]["ref_counter"] -= 1
         # This flattens the array to the format we want it to be
-        return {"header": self._data[filterbank["fil_file"]]["header"],
-                    "data": self._data[filterbank["fil_file"]]["data"]}
+        return {"header": self._data[full_name]["header"],
+                    "data": self._data[full_name]["data"]}
 
     else:
 
       logger.info("Filterbank %s not in the data table", 
-                  filterbank["fil_file"])
+                  full_name)
       fil_data = self._read_filterbank(filterbank["full_dir"],
                                     filterbank["fil_file"])
 
