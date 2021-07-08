@@ -199,7 +199,7 @@ def main():
   logger.setLevel(getattr(logging, arguments.log.upper()))
   # Might set a separate file handler for warning messages
   cl_handler = logging.StreamHandler()
-  formatter = logging.Formatter("%(asctime)s, %(levelname)s: %(message)s",
+  formatter = logging.Formatter("%(asctime)s, %(process)d %(levelname)s: %(message)s",
                                 datefmt="%a %Y-%m-%d %H:%M:%S")
   cl_handler.setLevel(getattr(logging, arguments.log.upper()))
   cl_handler.setFormatter(formatter)

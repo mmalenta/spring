@@ -1,6 +1,8 @@
-from asyncio import Queue as AQueue
+#from asyncio import Queue as AQueue
+from multiprocessing import get_context
+from multiprocessing.queues import Queue as MPQueue
 
-class CandidateQueue(AQueue):
+class CandidateQueue(MPQueue):
 
     """
 
@@ -11,4 +13,6 @@ class CandidateQueue(AQueue):
 
     """
 
-    pass
+    def __init__(self) -> None:
+        ctx = get_context()
+        super().__init__(ctx=ctx)
