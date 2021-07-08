@@ -65,7 +65,7 @@ class Pipeline:
       List of modules responsible for processing of candidates.
 
     _candidate_queue: CandQueue
-      Queue where new candidates are push to by the Watch Module and
+      Queue where new candidates are pushed to by the Watch Module and
       are later picked up by pipeline for further processing.
 
     _final_queue: CandQueue
@@ -101,8 +101,6 @@ class Pipeline:
 
     self._module_queue = ComputeQueue(config["modules"], self._fil_table)
     self._candidate_queue = CandQueue()
-    #self._final_queue = CandQueue()
-
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
@@ -196,7 +194,7 @@ class Pipeline:
           }
         }
 
-        cand_data = await cand_queue.get()
+        cand_data = cand_queue.get()
         self._module_queue[0].initialise(cand_data)
 
         metadata["mask"]["mask"] = ones(cand_data.metadata["fil_metadata"]["nchans"]).astype(float32)
@@ -302,24 +300,26 @@ class Pipeline:
 
     logger.info("Starting up processing...")
 
-    watcher = loop.create_task(self._watch_module.watch(self._candidate_queue))
     computer = loop.create_task(self._process(self._candidate_queue))
-    #finaliser = loop.create_task(self._finalise(self._final_queue))
     listener = loop.create_task(asyncio.start_server(self._listen,
                                 "127.0.0.1", 9999))
+
+    watcher = Process(target=self._watch_module.watch,
+                      args=(self._candidate_queue,))
 
     finiliser = Process(target=self._finalise, args=(self._cand_table,
                                                       self._fil_table,
                                                       self._plot_module,
                                                       self._archive_module))
     finiliser.start()
+    watcher.start()
 
-    #await asyncio.gather(listener, watcher, computer, finaliser)
-    await asyncio.gather(listener, watcher, computer)
+    await asyncio.gather(listener, computer)
 
     logger.info("Finishing the processing...")
     loop.stop()
     finiliser.join()
+    watcher.join()
 
   def stop(self, loop: asyncio.AbstractEventLoop) -> None:
     """

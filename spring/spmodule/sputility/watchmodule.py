@@ -7,7 +7,7 @@ from os import path, scandir, stat
 from pandas import read_csv
 from struct import unpack
 from retry.api import retry_call
-from time import mktime, perf_counter, strptime
+from time import mktime, perf_counter, strptime, sleep
 from typing import Dict, List
 
 from spcandidate.candidate import Candidate as Cand
@@ -103,7 +103,7 @@ class WatchModule(UtilityModule):
     logger.info("Will watch %s directories in %s",
                 self._max_watch, self._base_directory)
 
-  async def watch(self, cand_queue: CandQueue) -> None:
+  def watch(self, cand_queue: CandQueue) -> None:
 
     """
 
@@ -186,7 +186,7 @@ class WatchModule(UtilityModule):
                 if len(cand_file) == 0:
                   logger.warning("No .spccl file found yet under %s. \
                                  Waiting...", full_dir)
-                  await asyncio.sleep(0.1)
+                  sleep(0.1)
                   cand_file = glob(path.join(full_dir, "*.spccl"))
                   waited = waited + 0.1
 
@@ -204,7 +204,7 @@ class WatchModule(UtilityModule):
               while ((len(cands) == 0) and waited < self._spccl_wait_sec):
                 logger.warning("No candidates in .spccl file under %s. \
                                Waiting...", full_dir)
-                await asyncio.sleep(0.1)
+                sleep(0.1)
                 cands = read_csv(cand_file[0], delimiter="\s+", 
                                  names=self._spccl_header, skiprows=1)
                 waited = waited + 0.1
@@ -236,7 +236,7 @@ class WatchModule(UtilityModule):
                          waited < self._fil_wait_sec):
                     logger.info("File %s is being written into", file_path)
 
-                    await asyncio.sleep(0.1)
+                    sleep(0.1)
                     # Update new size
                     ifile[2] = stat(file_path).st_size
                     waited = waited + 0.1
@@ -289,7 +289,7 @@ class WatchModule(UtilityModule):
 
                     cand_dict["cand_metadata"] = cand_metadata
 
-                    await cand_queue.put(Cand(cand_dict))
+                    cand_queue.put(Cand(cand_dict))
                     logger.debug("Candidate queue size is now %d",
                                  cand_queue.qsize())
           # Update the newest file times for all the beams
@@ -298,7 +298,7 @@ class WatchModule(UtilityModule):
         logger.info("Recalculating directories...")
         dirs_data = self._get_current_dirs(dirs_data)
 
-        await asyncio.sleep(1)
+        sleep(1)
         logger.debug("Candidate queue size is now %d",
                      cand_queue.qsize())
 
