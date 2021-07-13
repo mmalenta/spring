@@ -1,5 +1,6 @@
 import logging
 
+from multiprocessing import Lock
 from multiprocessing.managers import BaseManager
 from os import path
 
@@ -89,6 +90,8 @@ class FilDataTable:
     # Convert from GiB to B for int comparison
     self._size_limit = int(size_limit * 1024 * 1024 * 1024)
 
+    self._lock = Lock()
+
     logger.info("Filterbank data table initialised")
 
   def add_candidate(self, filterbank):
@@ -121,52 +124,54 @@ class FilDataTable:
     full_name = filterbank["fil_file"] + "_" \
                 + filterbank["full_dir"].split('/')[-1]
 
-    if full_name in self._data:
-      
-      logger.info("Filterbank %s already exists in the data table", 
-                  full_name)
-      self._data[full_name]["ref_counter"] += 1
-      return (self._data[full_name]["data"], "clean")
+    with self._lock:
 
-    else:
-
-      logger.info("Reading filterbank %s into the data table", full_name)
-
-      fil_data = self._read_filterbank(filterbank["full_dir"],
-                                        filterbank["fil_file"])
-      
-      fil_header = copy(fil_data[:filterbank["header_size"]])
-      fil_data = fil_data[filterbank["header_size"]:]
-      # Just in case we do not have a full filterbank written
-      # This can happen when pipeline is stopped during the write
-      nchans = filterbank["nchans"]
-      time_samples = int(floor(fil_data.size / nchans))
-      fil_data = reshape(fil_data[:(time_samples * nchans)],
-                        (time_samples, nchans)).astype(float32).T
-
-      if self._current_size + fil_data.size <= self._size_limit:
-        self._data[full_name] = {"header": fil_header,
-                                            "data": fil_data,
-                                            "ref_counter": 1}
-      
-        # Take just the filterbank file into account - this is the main
-        # contribution to the data table size
-        self._current_size += fil_data.size
-        logger.info("Current data table size: %dB/%.2fMiB",
-                      self._current_size,
-                      self._current_size / 1024.0 / 1024.0)
-
-        return (self._data[full_name]["data"], "orig")
+      if full_name in self._data:
+        
+        logger.info("Filterbank %s already exists in the data table", 
+                    full_name)
+        self._data[full_name]["ref_counter"] += 1
+        return (self._data[full_name]["data"], "clean")
 
       else:
 
-        logger.warning("Exceeded the allowed size of the data table!")
-        logger.warning("Filterbank %s will not be put in the data table!",
-                        full_name)
-        # Don't put any entries in the data table
-        # Just return the data - every candidate will have to read the
-        # data, same goes for the archive
-        return (fil_data, "orig")
+        logger.info("Reading filterbank %s into the data table", full_name)
+
+        fil_data = self._read_filterbank(filterbank["full_dir"],
+                                          filterbank["fil_file"])
+        
+        fil_header = copy(fil_data[:filterbank["header_size"]])
+        fil_data = fil_data[filterbank["header_size"]:]
+        # Just in case we do not have a full filterbank written
+        # This can happen when pipeline is stopped during the write
+        nchans = filterbank["nchans"]
+        time_samples = int(floor(fil_data.size / nchans))
+        fil_data = reshape(fil_data[:(time_samples * nchans)],
+                          (time_samples, nchans)).astype(float32).T
+
+        if self._current_size + fil_data.size <= self._size_limit:
+          self._data[full_name] = {"header": fil_header,
+                                              "data": fil_data,
+                                              "ref_counter": 1}
+        
+          # Take just the filterbank file into account - this is the main
+          # contribution to the data table size
+          self._current_size += fil_data.size
+          logger.info("Current data table size: %dB/%.2fMiB",
+                        self._current_size,
+                        self._current_size / 1024.0 / 1024.0)
+
+          return (self._data[full_name]["data"], "orig")
+
+        else:
+
+          logger.warning("Exceeded the allowed size of the data table!")
+          logger.warning("Filterbank %s will not be put in the data table!",
+                          full_name)
+          # Don't put any entries in the data table
+          # Just return the data - every candidate will have to read the
+          # data, same goes for the archive
+          return (fil_data, "orig")
 
 
   def update_data(self, filterbank):
@@ -174,18 +179,20 @@ class FilDataTable:
     full_name = filterbank.metadata["fil_metadata"]["fil_file"] + "_" \
                 + filterbank.metadata["fil_metadata"]["full_dir"].split('/')[-1]
 
-    if full_name in self._data:
+    with self._lock:
 
-      logger.debug("Updating filterbank %s to its cleaned version",
-                    full_name)
+      if full_name in self._data:
 
-      self._data[full_name]["data"] = filterbank.data
+        logger.debug("Updating filterbank %s to its cleaned version",
+                      full_name)
 
-    else:
+        self._data[full_name]["data"] = filterbank.data
 
-      logger.debug("Filterbank %s not present in the data table",
-                    full_name)
-      logger.debug("Will not update it to its cleaned version")
+      else:
+
+        logger.debug("Filterbank %s not present in the data table",
+                      full_name)
+        logger.debug("Will not update it to its cleaned version")
 
   def remove_candidate(self, filterbank):
 
@@ -219,52 +226,54 @@ class FilDataTable:
     full_name = filterbank["fil_file"] + "_" \
                 + filterbank["full_dir"].split('/')[-1]
 
-    if full_name in self._data:
+    with self._lock:
 
-      logger.info("Filterbank %s in the data table", 
-                  full_name)
+      if full_name in self._data:
 
-      if self._data[full_name]["ref_counter"] == 1:
-        logger.info("Removing filterbank %s from the data table", 
+        logger.info("Filterbank %s in the data table", 
                     full_name)
-        self._current_size -= self._data[full_name]["data"].size
-        # Copy the data before we actually remove it
-        fil_data = {"header": self._data[full_name]["header"],
-                    "data": self._data[full_name]["data"]}
 
-        self._data[full_name] = None
-        del self._data[full_name]
+        if self._data[full_name]["ref_counter"] == 1:
+          logger.info("Removing filterbank %s from the data table", 
+                      full_name)
+          self._current_size -= self._data[full_name]["data"].size
+          # Copy the data before we actually remove it
+          fil_data = {"header": self._data[full_name]["header"],
+                      "data": self._data[full_name]["data"]}
 
-        logger.info("Current data table size: %dB/%.2fMiB",
-                      self._current_size,
-                      self._current_size / 1024.0 / 1024.0)
-        return fil_data
+          self._data[full_name] = None
+          del self._data[full_name]
+
+          logger.info("Current data table size: %dB/%.2fMiB",
+                        self._current_size,
+                        self._current_size / 1024.0 / 1024.0)
+          return fil_data
+
+        else:
+
+          self._data[full_name]["ref_counter"] -= 1
+          # This flattens the array to the format we want it to be
+          return {"header": self._data[full_name]["header"],
+                      "data": self._data[full_name]["data"]}
 
       else:
 
-        self._data[full_name]["ref_counter"] -= 1
-        # This flattens the array to the format we want it to be
-        return {"header": self._data[full_name]["header"],
-                    "data": self._data[full_name]["data"]}
+        logger.info("Filterbank %s not in the data table", 
+                    full_name)
+        fil_data = self._read_filterbank(filterbank["full_dir"],
+                                      filterbank["fil_file"])
 
-    else:
+        fil_header = copy(fil_data[:filterbank["header_size"]])
+        fil_data = fil_data[filterbank["header_size"]:]
+        # Just in case we do not have a full filterbank written
+        # This can happen when pipeline is stopped during the write
+        nchans = filterbank["nchans"]
+        time_samples = int(floor(fil_data.size / nchans))
+        fil_data = reshape(fil_data[:(time_samples * nchans)],
+                          (time_samples, nchans)).astype(float32).T
 
-      logger.info("Filterbank %s not in the data table", 
-                  full_name)
-      fil_data = self._read_filterbank(filterbank["full_dir"],
-                                    filterbank["fil_file"])
-
-      fil_header = copy(fil_data[:filterbank["header_size"]])
-      fil_data = fil_data[filterbank["header_size"]:]
-      # Just in case we do not have a full filterbank written
-      # This can happen when pipeline is stopped during the write
-      nchans = filterbank["nchans"]
-      time_samples = int(floor(fil_data.size / nchans))
-      fil_data = reshape(fil_data[:(time_samples * nchans)],
-                        (time_samples, nchans)).astype(float32).T
-
-      return {"header": fil_header,
-              "data": fil_data}                
+        return {"header": fil_header,
+                "data": fil_data}                
 
   def _read_filterbank(self, fil_dir: str, fil_file: str):
 
