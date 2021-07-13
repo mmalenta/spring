@@ -304,13 +304,14 @@ class Pipeline:
     listener = loop.create_task(asyncio.start_server(self._listen,
                                 "127.0.0.1", 9999))
 
-    watcher = Process(target=self._watch_module.watch,
+    watcher = Process(target=self._watch_module.watch, name="Watcher",
                       args=(self._candidate_queue,))
 
-    finiliser = Process(target=self._finalise, args=(self._cand_table,
-                                                      self._fil_table,
-                                                      self._plot_module,
-                                                      self._archive_module))
+    finiliser = Process(target=self._finalise, name="Finaliser",
+                        args=(self._cand_table,
+                          self._fil_table,
+                          self._plot_module,
+                          self._archive_module))
     finiliser.start()
     watcher.start()
 
