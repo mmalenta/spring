@@ -18,7 +18,7 @@ logger = logging.getLogger()
 
 class ColouredFormatter(logging.Formatter):
 
-  custom_format = "%(asctime)s, %(process)d \033[1;{0}m%(levelname)s\033[0m: %(message)s"
+  custom_format = "[%(asctime)s] [%(process)d %(processName)s] [\033[1;{0}m%(levelname)s\033[0m] [%(module)s] %(message)s"
 
   def format(self, record):
 
@@ -30,7 +30,7 @@ class ColouredFormatter(logging.Formatter):
     }
 
     colour_number = colours.get(record.levelno)
-    return logging.Formatter(self.custom_format.format(colour_number)).format(record)
+    return logging.Formatter(self.custom_format.format(colour_number), datefmt="%a %Y-%m-%d %H:%M:%S").format(record)
 
 def check_frbid_model(model_name: str, model_dir: str) -> bool:
 
