@@ -289,7 +289,7 @@ class WatchModule(UtilityModule):
 
                     cand_dict["cand_metadata"] = cand_metadata
 
-                    cand_queue.put(Cand(cand_dict))
+                    cand_queue.put_candidate((0, Cand(cand_dict)))
                     logger.debug("Candidate queue size is now %d",
                                  cand_queue.qsize())
           # Update the newest file times for all the beams

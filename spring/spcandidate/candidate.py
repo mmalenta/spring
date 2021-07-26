@@ -49,3 +49,8 @@ class Candidate:
     }
     self.time_added = cand["time"]
     
+  def __lt__(self, other):
+
+    sm = self.metadata["cand_metadata"]
+    om = other.metadata["cand_metadata"]
+    return (sm["mjd"], sm["dm"]) < (om["mjd"], om["dm"])
