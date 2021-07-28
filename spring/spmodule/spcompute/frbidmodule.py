@@ -166,12 +166,23 @@ class FrbidModule(ComputeModule):
 
     pred_end = perf_counter()
 
-    logger.info("Label %d with probability of %.4f", label, prob)
-
     cand_metadata = self._data.metadata["cand_metadata"]
 
     cand_metadata["label"] = label
     cand_metadata["prob"] = prob
+    
+    print(self._data.metadata["fil_metadata"]["fil_file"])
+
+    logger.log(15, "Candidate at MJD %.6f and DM %.2f "
+                    "from file %s, beam %d(%d) "
+                    "with label %d with probability of %.4f",
+                cand_metadata["mjd"],
+                cand_metadata["dm"],
+                self._data.metadata["fil_metadata"]["fil_file"],
+                self._data.metadata["beam_metadata"]["beam_abs"],
+                self._data.metadata["beam_metadata"]["beam_rel"],
+                cand_metadata["label"],
+                cand_metadata["prob"])
 
     # We add everything to the archiving
     cand_hash = str(hash(str(cand_metadata["dm"]) + str(cand_metadata["mjd"])
