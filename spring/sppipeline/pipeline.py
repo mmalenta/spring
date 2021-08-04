@@ -260,21 +260,28 @@ class Pipeline:
       message = loads(body.decode("utf-8"))
       ch.basic_ack(delivery_tag=method.delivery_tag)
 
-      cand_data = cand_table[message["cand_hash"]]
-      save_fil_data = (cand_data.metadata["cand_metadata"]["label"] or
+      try:
+
+        cand_data = cand_table[message["cand_hash"]]
+
+      except KeyError: 
+
+        logger.error("Candidate with hash %s "
+                      "not present in the candidate table",
+                      message["cand_hash"])
+
+      else:
+
+        save_fil_data = (cand_data.metadata["cand_metadata"]["label"] or
                           cand_data.metadata["cand_metadata"]["known"])
-
-      # We need the filterbank data for the plotting
-      cand_data.data = fil_table.remove_candidate(cand_data.metadata["fil_metadata"])
-
-      plot_module.plot(cand_data)
-      archive_module.archive(cand_data, save_fil_data)
+        # We need the filterbank data for the plotting
+        cand_data.data = fil_table.remove_candidate(cand_data.metadata["fil_metadata"])
+        plot_module.plot(cand_data)
+        archive_module.archive(cand_data, save_fil_data)
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     channel = connection.channel()
-
     hostname = gethostname()
-
     channel.queue_declare("archiving_" + hostname, durable=True)
     channel.queue_bind("archiving_" + hostname, "post_processing")
     channel.basic_consume(queue="archiving_" + hostname, auto_ack=False,
