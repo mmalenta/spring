@@ -116,7 +116,7 @@ class KnownModule(ComputeModule):
 
         logger.info("This candidate is a known source")
         logger.info("It will be processed further")
-        cand_metadata["known"] = True
+        cand_metadata["known"] = known_matches[0]
 
       else:
 

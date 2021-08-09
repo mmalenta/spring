@@ -195,7 +195,7 @@ class FrbidModule(ComputeModule):
 
     # Send the data to clustering only if the candidate is labelled
     # as probable and is not a known source
-    if label > 0.0 and not cand_metadata["known"]:
+    if label > 0.0 and not bool(cand_metadata["known"]):
       message = {
         "dm": self._data.metadata["cand_metadata"]["dm"],
         "mjd": self._data.metadata["cand_metadata"]["mjd"],
@@ -229,6 +229,13 @@ class FrbidModule(ComputeModule):
     # If the candidate is not labelled as probable or is a known source
     # then send directly to archiving
     else:
+
+      # We need to know quickly if a known source is classified 
+      # with label 0
+      if bool(cand_metadata["known"]) and label < 1.0:
+        logger.warning("Known source %s classified with label 0!",
+                        cand_metadata["known"])
+
       message = {
         "cand_hash": cand_hash
       }
