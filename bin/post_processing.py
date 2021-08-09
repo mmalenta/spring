@@ -25,12 +25,21 @@ class ColouredFormatter(logging.Formatter):
     colours = {
       logging.DEBUG: 30,
       logging.INFO: 32,
+      15: 36,
       logging.WARNING: 33,
       logging.ERROR: 31
     }
 
     colour_number = colours.get(record.levelno)
     return logging.Formatter(self.custom_format.format(colour_number), datefmt="%a %Y-%m-%d %H:%M:%S").format(record)
+
+class CandidateFilter():
+
+  def __init__(self, level = 15):
+    self._level = level
+  
+  def filter(self, record):
+    return record.levelno == self._level
 
 def check_frbid_model(model_name: str, model_dir: str) -> bool:
 
@@ -212,14 +221,20 @@ def main():
 
   arguments = parser.parse_args()
 
+  logging.addLevelName(15, "CANDIDATE")
   logger.setLevel(getattr(logging, arguments.log.upper()))
   # Might set a separate file handler for warning messages
   cl_handler = logging.StreamHandler()
-  formatter = logging.Formatter("%(asctime)s, %(process)d %(levelname)s: %(message)s",
-                                datefmt="%a %Y-%m-%d %H:%M:%S")
   cl_handler.setLevel(getattr(logging, arguments.log.upper()))
   cl_handler.setFormatter(ColouredFormatter())
   logger.addHandler(cl_handler)
+  
+  fl_handler = logging.FileHandler(path.join(arguments.directory, "candidates.dat"))
+  formatter = logging.Formatter("%(asctime)s: %(message)s",
+                                datefmt="%a %Y-%m-%d %H:%M:%S")
+  fl_handler.setFormatter(formatter)
+  fl_handler.addFilter(CandidateFilter())
+  logger.addHandler(fl_handler)
 
   modules = [(module, {}) for module in arguments.modules]
   if arguments.model is not None:
