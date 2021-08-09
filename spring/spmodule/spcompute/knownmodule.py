@@ -1,5 +1,6 @@
 import logging
 
+from os import path
 from random import random
 from typing import Dict
 
@@ -112,6 +113,19 @@ class KnownModule(ComputeModule):
 
     if (known_matches is not None):
       
+      # Save the known source information
+      # Separate file per beam for now
+      fil_metadata = self._data.metadata["fil_metadata"]
+      known_file = path.join(fil_metadata["full_dir"],
+                              'known_sources.dat')
+      with open(known_file, 'a') as kf:
+          kf.write("%.10f\t%.4f\t%.4f\t%.2f\t%d\t%s\t%s\t%s\t%s\t%s\n" % 
+          (cand_metadata["mjd"], cand_metadata["dm"],
+          cand_metadata["width"], cand_metadata["snr"],
+          beam_metadata["beam_abs"], beam_metadata["beam_type"],
+          beam_metadata['beam_ra'], beam_metadata["beam_dec"],
+          fil_metadata["fil_file"], known_matches[0]))
+
       if (random() <= self._known_pass_ratio):
 
         logger.info("This candidate is a known source")
