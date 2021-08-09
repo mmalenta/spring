@@ -18,7 +18,7 @@ from spmodule.sputility.plotmodule import PlotModule
 from spmodule.sputility.archivemodule import ArchiveModule
 from sppipeline.filmanager import FilManager
 from spqueue.computequeue import ComputeQueue
-from spqueue.candidatequeue import CandidateQueue as CandQueue
+from spqueue.candidatequeue import CandidateManager
 
 logger = logging.getLogger(__name__)
 
@@ -96,17 +96,20 @@ class Pipeline:
     self._fil_manager.start()
     self._fil_table = self._fil_manager.FilData()
 
-    self._cand_manager = Manager()
-    self._cand_table = self._cand_manager.dict()
+    self._final_manager = Manager()
+    self._final_table = self._final_manager.dict()
+
+    self._candidate_manager = CandidateManager()
+    self._candidate_manager.start()
+    self._candidate_queue = self._candidate_manager.CandidateQueue()
 
     self._module_queue = ComputeQueue(config["modules"], self._fil_table)
-    self._candidate_queue = CandQueue()
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
 
     #self._module_queue["frbid"].set_out_queue(self._final_queue)
-    self._module_queue["frbid"].set_out_queue(self._cand_table)
+    self._module_queue["frbid"].set_out_queue(self._final_table)
     
   async def _listen(self, reader, writer) -> None:
 
@@ -194,7 +197,7 @@ class Pipeline:
           }
         }
 
-        cand_data = cand_queue.get()
+        cand_data = cand_queue.get_candidate()[1]
         self._module_queue[0].initialise(cand_data)
 
         metadata["mask"]["mask"] = ones(cand_data.metadata["fil_metadata"]["nchans"]).astype(float32)
@@ -308,7 +311,7 @@ class Pipeline:
                       args=(self._candidate_queue,))
 
     finiliser = Process(target=self._finalise, name="Finaliser",
-                        args=(self._cand_table,
+                        args=(self._final_table,
                           self._fil_table,
                           self._plot_module,
                           self._archive_module))
