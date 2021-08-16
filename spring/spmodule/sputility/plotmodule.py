@@ -387,7 +387,7 @@ class PlotModule(UtilityModule):
           
           __shared__ float inchunk[32][32];
           
-          if ((blockIdx.x * blockDim.x + threadIdx.x) < sub_dedisp_samples) {
+          if ((2 * blockIdx.x * blockDim.x + 2 * threadIdx.y) < sub_dedisp_samples) {
             int band = blockIdx.y;
             // This kernel is used specifically for dedispersing 16 channels per subband
             int band_size = 16;
@@ -520,6 +520,8 @@ class PlotModule(UtilityModule):
     sub_kernel_start = perf_counter()
     if (freq_avg == 16):
       # We divide time sampels in .y direction as well
+      # Can't floor - need to make sure we don't end up with 0 where there is 1 block originally
+      # Need extra checks for overflowing inside the kernel
       block_x = int(ceil(block_x / 2))
       SubDedispGPUHalf((block_x, block_y), (thread_x, thread_y), (gpu_input, gpu_output, gpu_intra_band_delays, input_samples, sub_dedisp_samples_gpu, self._out_bands))
     else: 
