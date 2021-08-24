@@ -135,20 +135,26 @@ class WatchModule(UtilityModule):
 
     dirs_data = self._get_current_dirs()
 
+    ### IMPORTANT ###
+    # Due to the asynchronous nature of candidate processing .spccl
+    # file will be written to before the filterbank file is saved
+    # IN MOST CASES, but there is still a chance that a filterbank
+    # file will be written first
+
     while True:
 
       try:
 
+        # Loops over directories
         for data in dirs_data:
-
-          last_file = data["last_file"]
-
+          # Loops over beams within a single directory
           for ibeam in data["logs"]:
 
             # Operate using relative beam numbers
             rel_number = ibeam["beam_rel"]
             full_dir = path.join(data["dir"], "beam"
                                  + "{:02}".format(rel_number))
+            processed_files = data["processed_files"][rel_number]
 
             # Check if the directory exists
             # Should fire only if something goes really wrong
@@ -165,8 +171,7 @@ class WatchModule(UtilityModule):
             all_files = scandir(full_dir)
 
             for ifile in all_files:
-              if (ifile.name.endswith("fil")
-                  and (ifile.stat().st_mtime > last_file[rel_number])):
+              if ifile.name.endswith("fil") and ifile.name not in processed_files:
                 fil_files.append([ifile.name, ifile.stat().st_mtime,
                                   ifile.stat().st_size])
 
@@ -175,8 +180,6 @@ class WatchModule(UtilityModule):
 
             # Get the newest file time per beam
             if len(fil_files) > 0:
-              last_file[rel_number] = max(fil_files, key = lambda ff: ff[1])[1]
-
               # Check if the .spccl file exists
               cand_file = glob(path.join(full_dir, "*.spccl"))
 
@@ -194,7 +197,6 @@ class WatchModule(UtilityModule):
                 logger.error("No valid .spccl file after %.2f seconds \
                              under %s. Will reset filterbank candidates",
                              self._spccl_wait_sec, full_dir)
-                last_file[rel_number] = 0
                 continue
 
               cands = read_csv(cand_file[0], delimiter="\s+", 
@@ -213,7 +215,6 @@ class WatchModule(UtilityModule):
                 logger.error("Empty .spccl file after %.2f seconds \
                              under %s. Will reset filterbank candidates",
                              self._spccl_wait_sec, full_dir)
-                last_file[rel_number] = 0
                 continue
 
               for ifile in fil_files:
@@ -292,8 +293,9 @@ class WatchModule(UtilityModule):
                     cand_queue.put_candidate((0, Cand(cand_dict)))
                     logger.debug("Candidate queue size is now %d",
                                  cand_queue.qsize())
-          # Update the newest file times for all the beams
-          data["last_file"] = last_file
+
+                  # Only append the file if it was properly processed
+                  processed_files.add(ifile[0])
 
         logger.info("Recalculating directories...")
         dirs_data = self._get_current_dirs(dirs_data)
@@ -421,7 +423,7 @@ class WatchModule(UtilityModule):
                     "logs": dir_logs,
                     "total_fil": 0,
                     "new_fil": 0,
-                    "last_file": [0] * num_beams,
+                    "processed_files": [set() for _ in range(num_beams)],
                     "total_cands": [0] * num_beams,
                     "new_cands": [0] * num_beams,
                     "last_cand": [0] * num_beams})
