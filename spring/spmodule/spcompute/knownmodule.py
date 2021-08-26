@@ -1,5 +1,6 @@
 import logging
 
+from os import path
 from random import random
 from typing import Dict
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 class KnownModule(ComputeModule):
 
   """
+
   Module responsible for matching candidates with known sources
 
   This module checking whether candidates passed from the watch module
@@ -53,14 +55,13 @@ class KnownModule(ComputeModule):
 
     super().__init__()
     self.id = 0
-
-    print(config)
+    self.type = "V"
 
     if (config == None) or not config:
       self._catalogue = "psrcat"
       self._thresh_dist = 1.5
       self._thresh_dm = 5.0
-      self._known_pass_ratio = 0.01
+      self._known_pass_ratio = 0.05
     else:
       self._catalogue = config["catalogue"]
       self._thresh_dist = config["thresh_dist"]
@@ -82,6 +83,7 @@ class KnownModule(ComputeModule):
   async def process(self, metadata: Dict):
 
     """
+    
     Matches the candidate to a known source
 
     If a match is found, the candidate is usually not passed further
@@ -111,10 +113,24 @@ class KnownModule(ComputeModule):
 
     if (known_matches is not None):
       
+      # Save the known source information
+      # Separate file per beam for now
+      fil_metadata = self._data.metadata["fil_metadata"]
+      known_file = path.join(fil_metadata["full_dir"],
+                              'known_sources.dat')
+      with open(known_file, 'a') as kf:
+          kf.write("%.10f\t%.4f\t%.4f\t%.2f\t%d\t%s\t%s\t%s\t%s\t%s\n" % 
+          (cand_metadata["mjd"], cand_metadata["dm"],
+          cand_metadata["width"], cand_metadata["snr"],
+          beam_metadata["beam_abs"], beam_metadata["beam_type"],
+          beam_metadata['beam_ra'], beam_metadata["beam_dec"],
+          fil_metadata["fil_file"], known_matches[0]))
+
       if (random() <= self._known_pass_ratio):
 
         logger.info("This candidate is a known source")
         logger.info("It will be processed further")
+        cand_metadata["known"] = known_matches[0]
 
       else:
 

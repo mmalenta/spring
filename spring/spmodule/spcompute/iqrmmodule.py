@@ -11,10 +11,29 @@ logger = logging.getLogger(__name__)
 
 class IqrmModule(ComputeModule):
 
+  """
+
+  Module responsible for running IQRM on the data.
+
+  Really just a wrapper for the call to the relevant IQRM modules.
+
+  Parameters:
+
+    config: Dict, default None
+      Currently a dummy variable, not used
+
+  Attributes:
+
+    id: int
+      Module ID used to sort the modules in the processing queue.
+
+  """
+
   def __init__(self, config: Dict = None):
 
     super().__init__()
     self.id = 10
+    self.type = "C"
     logger.info("IQRM module initialised")
 
 
@@ -22,7 +41,20 @@ class IqrmModule(ComputeModule):
 
     """"
 
-    Start the IQRM processing
+    Start the IQRM processing.
+
+    Runs IQRM on the data. Scales the data and applies the mask.
+    Data mean and standard deviation are updated.
+
+    Parameters:
+
+      metadata: Dict
+        Dictionary with all the necessary candidate information. 
+        Contains the the array with the filterbank data.
+
+    Returns:
+
+      None
 
     """
 

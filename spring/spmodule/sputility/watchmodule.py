@@ -1,15 +1,13 @@
 import asyncio
 import logging
 
-from astropy.coordinates import SkyCoord
-from astropy.units import hourangle as ap_ha, deg as ap_deg
 from glob import glob
 from json import load
-from numpy import floor, fromfile, reshape
 from os import path, scandir, stat
 from pandas import read_csv
 from struct import unpack
-from time import mktime, perf_counter, strptime
+from retry.api import retry_call
+from time import mktime, perf_counter, strptime, sleep
 from typing import Dict, List
 
 from spcandidate.candidate import Candidate as Cand
@@ -21,6 +19,7 @@ logger = logging.getLogger(__name__)
 class WatchModule(UtilityModule):
 
   """
+
   Module responsible for finding new filterbank files in directories
 
   Using default behaviour, this module will be watching the last 'n'
@@ -52,6 +51,12 @@ class WatchModule(UtilityModule):
     _directories: List[str]
       Directories to watch.
 
+    _fil_header_size: int
+      Size of the filterbank file header. Used to skip the header and
+      read the data. Hardcoded value will soon be deprecated to allow
+      for different filterbank files, with potentially varying
+      header sizes to be processed.
+
     _fil_wait_sec: float
       Number of seconds that is spent on checking whether a given
       filterbank file is still being written into. If the file is still
@@ -72,7 +77,7 @@ class WatchModule(UtilityModule):
       If there are directories older than the newest directory by this
       limit, then they are not included in the watcher list.
 
-    _spccl_header: List
+    _spccl_header: List[str]
       Header names used in the .sppcl file.
 
   """
@@ -98,7 +103,35 @@ class WatchModule(UtilityModule):
     logger.info("Will watch %s directories in %s",
                 self._max_watch, self._base_directory)
 
-  async def watch(self, cand_queue: CandQueue) -> None:
+  def watch(self, cand_queue: CandQueue) -> None:
+
+    """
+
+    Watch the directories for updated .spccl and .fil files.
+
+    This methods finds new filterbank files in watched directories and
+    matches them with single-pulse canidates from the .spccl files.
+    Each matched candidates is pushed to the candidate queue for
+    further processing.
+    This methods runs indefinitely in a loop until the pipeline
+    is stopped. It starts with directories that match
+    the selection criteria: at most self._max_watch directories,
+    but less if the self._start_limit_hour wait limits are exceeded.
+    Each beam directory scanned individually in a loop.
+    The directory list is updated if necessary on each iteration.
+    Async sleep at the end of every iteration to enable other work. 
+
+    Parameters:
+
+      cand_queue: CandQueue
+        Asynchronous candidates queue for detected candidates. Each
+        added candidates is later picked up by the processing pipeline.
+
+    Returns:
+
+      None
+
+    """
 
     dirs_data = self._get_current_dirs()
 
@@ -153,7 +186,7 @@ class WatchModule(UtilityModule):
                 if len(cand_file) == 0:
                   logger.warning("No .spccl file found yet under %s. \
                                  Waiting...", full_dir)
-                  await asyncio.sleep(0.1)
+                  sleep(0.1)
                   cand_file = glob(path.join(full_dir, "*.spccl"))
                   waited = waited + 0.1
 
@@ -171,7 +204,7 @@ class WatchModule(UtilityModule):
               while ((len(cands) == 0) and waited < self._spccl_wait_sec):
                 logger.warning("No candidates in .spccl file under %s. \
                                Waiting...", full_dir)
-                await asyncio.sleep(0.1)
+                sleep(0.1)
                 cands = read_csv(cand_file[0], delimiter="\s+", 
                                  names=self._spccl_header, skiprows=1)
                 waited = waited + 0.1
@@ -203,7 +236,7 @@ class WatchModule(UtilityModule):
                          waited < self._fil_wait_sec):
                     logger.info("File %s is being written into", file_path)
 
-                    await asyncio.sleep(0.1)
+                    sleep(0.1)
                     # Update new size
                     ifile[2] = stat(file_path).st_size
                     waited = waited + 0.1
@@ -217,6 +250,7 @@ class WatchModule(UtilityModule):
                   header = self._read_header(ff)
                   header["fil_file"] = ifile[0]
                   header["full_dir"] = full_dir
+                  header["header_size"] = self._fil_header_size
 
                   file_samples = int((ifile[2] - self._fil_header_size)
                                      / header["nchans"])
@@ -230,36 +264,32 @@ class WatchModule(UtilityModule):
                   matched_cands = cands[(cands["MJD"] >= file_start) &
                                         (cands["MJD"] < file_end)]
 
+                  # Bail out early for this file
                   if len(matched_cands) == 0:
                     logger.warning("No candidates found for file %s", file_path)
-
-                  fil_data = fromfile(file_path, dtype='B')[self._fil_header_size:]
-
-                  # We can have a filterbank file being written when
-                  # the pipeline is stopped
-                  time_samples = int(floor(fil_data.size / header["nchans"]))
+                    continue
 
                   cand_dict = {
-                      "data": reshape(fil_data[:(time_samples * header["nchans"])],
-                                      (time_samples, header["nchans"])).T,
+                      "data": None,
                       "fil_metadata": header,
                       "cand_metadata": {},
                       "beam_metadata": ibeam,
                       "time": perf_counter()
                   }
 
-                  for candidx, cand in matched_cands.iterrows():
+                  for _, cand in matched_cands.iterrows():
 
                     cand_metadata = {
                         "mjd": cand["MJD"],
                         "dm": cand["DM"],
                         "width": cand["Width"],
-                        "snr": cand["SNR"]
+                        "snr": cand["SNR"],
+                        "known": ""
                     }
 
                     cand_dict["cand_metadata"] = cand_metadata
 
-                    await cand_queue.put(Cand(cand_dict))
+                    cand_queue.put_candidate((0, Cand(cand_dict)))
                     logger.debug("Candidate queue size is now %d",
                                  cand_queue.qsize())
           # Update the newest file times for all the beams
@@ -268,7 +298,7 @@ class WatchModule(UtilityModule):
         logger.info("Recalculating directories...")
         dirs_data = self._get_current_dirs(dirs_data)
 
-        await asyncio.sleep(1)
+        sleep(1)
         logger.debug("Candidate queue size is now %d",
                      cand_queue.qsize())
 
@@ -284,7 +314,7 @@ class WatchModule(UtilityModule):
 
     """
 
-    Methods for getting new directories and their info.
+    Methods for getting new directories and their information.
 
     If new directories appear, the oldest ones are removed from
     the current directories list.
@@ -377,17 +407,33 @@ class WatchModule(UtilityModule):
 
         else:
 
-          dir_logs = self._read_logs(idir)
-          num_beams = len(dir_logs)
+          # Try getting the run_summary.json file for a full minute
+          try:
 
-          tmp_current_directories.append({"dir": idir,
-                  "logs": dir_logs,
-                  "total_fil": 0,
-                  "new_fil": 0,
-                  "last_file": [0] * num_beams,
-                  "total_cands": [0] * num_beams,
-                  "new_cands": [0] * num_beams,
-                  "last_cand": [0] * num_beams})
+            dir_logs = retry_call(self._read_logs, fargs=[idir],
+                                  exceptions=FileNotFoundError,
+                                  tries=12,
+                                  delay=5,
+                                  logger=logger)
+            num_beams = len(dir_logs)
+
+            tmp_current_directories.append({"dir": idir,
+                    "logs": dir_logs,
+                    "total_fil": 0,
+                    "new_fil": 0,
+                    "last_file": [0] * num_beams,
+                    "total_cands": [0] * num_beams,
+                    "new_cands": [0] * num_beams,
+                    "last_cand": [0] * num_beams})
+
+          except FileNotFoundError:
+            # TODO: Currently we just skip this directory in the current
+            # watcher loop iteration. Prevent the watcher from using
+            # using this directory at all - if the file doesn't appear
+            # after one minute, it is highly unlikely it will appear at
+            # all
+            logger.error("Did not find a run_summary.json file in %s",
+                          idir)
 
       current_directories = tmp_current_directories
 
@@ -395,6 +441,30 @@ class WatchModule(UtilityModule):
 
   def _read_logs(self, directory: str, 
                  log_file: str = "run_summary.json") -> List:
+
+    """
+
+    Read JSON setup for current directory.
+
+    Reads a JSON file which contains the information abotu the current
+    observign run. Currently used to extract beam information.
+
+    Parameters:
+
+      directory: str
+        Base UTC directory where the JSON file can be found. There
+        should be only one such JSON file for UTC directory.
+      
+      log_file: str, default "run_summary.json"
+        Name of the JSON file to be read.
+
+    Returns:
+
+      beam_info: List[Dict]
+        List of dictionaries with the relevant beam information. One
+        dictionary per beam.
+
+    """
 
     beam_info = []
 
@@ -427,12 +497,12 @@ class WatchModule(UtilityModule):
     Parameters:
 
       file: 
-        Filterbank file buffer
+        Filterbank file buffer.
 
     Returns:
 
       header : Dict
-        Dictionary with relevant header values
+        Dictionary with relevant header values.
 
     """
 

@@ -16,6 +16,31 @@ from sppipeline.pipeline import Pipeline
 
 logger = logging.getLogger()
 
+class ColouredFormatter(logging.Formatter):
+
+  custom_format = "[%(asctime)s] [%(process)d %(processName)s] [\033[1;{0}m%(levelname)s\033[0m] [%(module)s] %(message)s"
+
+  def format(self, record):
+
+    colours = {
+      logging.DEBUG: 30,
+      logging.INFO: 32,
+      15: 36,
+      logging.WARNING: 33,
+      logging.ERROR: 31
+    }
+
+    colour_number = colours.get(record.levelno)
+    return logging.Formatter(self.custom_format.format(colour_number), datefmt="%a %Y-%m-%d %H:%M:%S").format(record)
+
+class CandidateFilter():
+
+  def __init__(self, level = 15):
+    self._level = level
+  
+  def filter(self, record):
+    return record.levelno == self._level
+
 def check_frbid_model(model_name: str, model_dir: str) -> bool:
 
   """
@@ -31,9 +56,9 @@ def check_frbid_model(model_name: str, model_dir: str) -> bool:
     mode_dir: str
       Directory where the model exists
 
-    Returns
+  Returns:
 
-      : bool
+    : bool
       True if the checks are passed and the model can be loaded.
       False if the checks fail and the model cannod be loaded.
 
@@ -74,7 +99,7 @@ def parse_config_file(current_config: Dict, config_file: str) -> Dict:
     config_file: str
       Path to the JSON configuration file
 
-  Returns
+  Returns:
 
     current_config: Dict
       An updated configuration dictionary
@@ -118,10 +143,12 @@ def parse_config_file(current_config: Dict, config_file: str) -> Dict:
 def main():
 
   """
-  Main entrypoint to the post-processing pipeline
+
+  Main entrypoint to the post-processing pipeline.
+
+  Parses the command line arguments and starts the processing pipeline.
 
   """
-
 
   parser = ap.ArgumentParser(description="MeerTRAP real-time post-processing \
                                           pipeline",
@@ -194,14 +221,20 @@ def main():
 
   arguments = parser.parse_args()
 
+  logging.addLevelName(15, "CANDIDATE")
   logger.setLevel(getattr(logging, arguments.log.upper()))
   # Might set a separate file handler for warning messages
   cl_handler = logging.StreamHandler()
-  formatter = logging.Formatter("%(asctime)s, %(levelname)s: %(message)s",
-                                datefmt="%a %Y-%m-%d %H:%M:%S")
   cl_handler.setLevel(getattr(logging, arguments.log.upper()))
-  cl_handler.setFormatter(formatter)
+  cl_handler.setFormatter(ColouredFormatter())
   logger.addHandler(cl_handler)
+  
+  fl_handler = logging.FileHandler(path.join(arguments.directory, "candidates.dat"))
+  formatter = logging.Formatter("%(asctime)s: %(message)s",
+                                datefmt="%a %Y-%m-%d %H:%M:%S")
+  fl_handler.setFormatter(formatter)
+  fl_handler.addFilter(CandidateFilter())
+  logger.addHandler(fl_handler)
 
   modules = [(module, {}) for module in arguments.modules]
   if arguments.model is not None:
