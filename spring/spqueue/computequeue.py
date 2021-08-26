@@ -1,7 +1,7 @@
 import logging
 import spmodule.spcompute as cm
 
-from typing import List
+from typing import Dict, List
 
 from spmodule.module import Module
 
@@ -38,7 +38,7 @@ class ComputeQueue:
 
   """
 
-  def __init__(self, modules: List[str], fil_table):
+  def __init__(self, modules: Dict, fil_table):
 
     # Having FRBID in this list is a bit redundand
     # as it is a requirement to provide a valid configuration
@@ -50,18 +50,17 @@ class ComputeQueue:
     self._data_state = None
     self._fil_table = fil_table
 
-    module_names = [module[0] for module in modules]
 
     for module in self._required:
-      if module not in module_names:
+      if module not in modules:
         logger.info("Adding a required %s module with an empty configuration",
                     module.capitalize())
-        modules.append((module, {}))
+        modules[module] = {}
 
-    for module in modules:
+    for module, config in modules.items():
       # Follow the naming convention described in the
       # ComputeModule class docstring
-      self._queue.append(getattr(getattr(cm, module[0] + "module"), module[0].capitalize() + "Module")(module[1]))
+      self._queue.append(getattr(getattr(cm, module + "module"), module.capitalize() + "Module")(config))
       
     self._queue.sort(key=lambda val: val.id)
 

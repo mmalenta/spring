@@ -115,23 +115,28 @@ def parse_config_file(current_config: Dict, config_file: str) -> Dict:
 
       if (key == "modules"):
 
-        file_config["modules"] = []
+        file_config["modules"] = {}
 
-        for module in config_json["modules"].items(): 
+        for module, config in config_json["modules"].items(): 
 
-          if module[0] == "frbid":
-            print(module[1])
-            if ("model" not in module[1] or "model_dir" not in module[1]):
+          if module == "frbid":
+            if ("model" not in config or "model_dir" not in config):
               logger.error("Did not provide a sufficient configuration for FRBID!")
               logger.error("Will quit now!")
               exit()
             
-            if not check_frbid_model(module[1]["model"], module[1]["model_dir"]):
+            if not check_frbid_model(config["model"], config["model_dir"]):
               logger.error("Did not provide a correct configuration for FRBID!")
               logger.error("Will quit now!")
               exit()
 
-          file_config["modules"].append(module)
+          file_config["modules"][module] = config
+
+          if "plot" in file_config["modules"]:
+            # Get the first letters of optional modules
+            module_abbr = [module[0].upper() for module in file_config["modules"]
+                            if module not in ["plot", "archive", "candmaker", "frbid"]]
+            file_config["modules"]["plot"]["modules"] = module_abbr
 
       else:
 
@@ -153,6 +158,7 @@ def main():
   parser = ap.ArgumentParser(description="MeerTRAP real-time post-processing \
                                           pipeline",
                               usage="%(prog)s [options]",
+                              argument_default=ap.SUPPRESS,
                               epilog="For any bugs or feature requests, \
                                       please start an issue at \
                                       https://github.com/mmalenta/spring")
@@ -166,21 +172,20 @@ def main():
                       help="Log level", 
                       required=False,
                       type=str,
-                      choices=["debug", "info", "warn"],
-                      default="debug")
+                      choices=["debug", "info", "warn"])
 
-  parser.add_argument("-d", "--directory",
+  parser.add_argument("-d", "--base_directory",
                       help="Base data directory to watch",
-                      required=True,
+                      required=False,
                       type=str)
 
   parser.add_argument("-w", "--watchers",
                       help="Number of UTC directories to watch for new \
                               candidate files",
                       required=False,
-                      type=int,
-                      default=3)
+                      type=int)
 
+  """
   parser.add_argument("-m", "--modules",
                       help="Optional modules to enable",
                       required=False,
@@ -189,6 +194,7 @@ def main():
                       type=str,
                       choices=["known", "iqrm", "zerodm", "threshold", "mask",
                                "multibeam", "plot", "archive"])
+  """
 
   parser.add_argument("--model", help="Model name and model directory",
                       required=False,
@@ -206,14 +212,11 @@ def main():
   # Row heights are currently set to be equal
   parser.add_argument("-p", "--plots", help="Plots to enable",
                       required=False,
-                      # If used, require at least one type of plot
-                      type=str,
-                      default="s0.75,b0.25:f0.5,t0.5")
+                      type=str)
 
   parser.add_argument("-c", "--channels", help="Plot output channels",
                       required=False,
-                      type=int,
-                      default=64)
+                      type=int)
 
   parser.add_argument("-t", "--tar", help="Enable candidate tarballs",
                       required=False,
@@ -221,62 +224,83 @@ def main():
 
   arguments = parser.parse_args()
 
+  configuration = {
+      "base_directory": None,
+      "log_level": None,
+      "num_watchers": None,
+      "modules": None,
+  }
+
+  """
+      ## Put that as part of modules
+      "plots": {
+          "plots": plots,
+          "out_chans": arguments.channels,
+          "modules": modules_abbr,
+      }
+  """
+
+  if arguments.config is not None:
+    configuration = parse_config_file(configuration, arguments.config)
+
+  # We want to correct log level as soon as possible
+  # Parsing logging only uses error logs, so it will always be passed
+  if ("log" in arguments):
+    print("Overwriting the log level")
+    configuration["log_level"] = arguments.log
+
   logging.addLevelName(15, "CANDIDATE")
-  logger.setLevel(getattr(logging, arguments.log.upper()))
+  logger.setLevel(getattr(logging, configuration["log_level"].upper()))
   # Might set a separate file handler for warning messages
   cl_handler = logging.StreamHandler()
-  cl_handler.setLevel(getattr(logging, arguments.log.upper()))
+  cl_handler.setLevel(getattr(logging, configuration["log_level"].upper()))
   cl_handler.setFormatter(ColouredFormatter())
   logger.addHandler(cl_handler)
   
-  fl_handler = logging.FileHandler(path.join(arguments.directory, "candidates.dat"))
+  args_dir = vars(arguments)
+
+  if "config" in args_dir:
+    del args_dir["config"]
+
+  if len(args_dir) >= 1:
+    overwrite_keys = args_dir.keys()
+    logger.warning("Configuration for \033[;1m%s\033[0m will be overwritten",
+                    ", ".join(overwrite_keys))
+
+    for key, val in args_dir.items():
+
+      print(key)
+
+      if key == "model":
+        chosen_model = arguments.model[0].upper()
+        chosen_dir = arguments.model[1]
+
+        if not check_frbid_model(chosen_model, chosen_dir):
+          logger.error("Did not provide a correct configuration for FRBID!")
+          logger.error("Will quit now!")
+          exit()
+        else:
+          configuration["modules"]["frbid"]["model"] = chosen_model
+          configuration["modules"]["frbid"]["nodel_dir"] = chosen_dir
+
+      else:
+        configuration[key] = val
+
+
+  fl_handler = logging.FileHandler(path.join(configuration["base_directory"], "candidates.dat"))
   formatter = logging.Formatter("%(asctime)s: %(message)s",
                                 datefmt="%a %Y-%m-%d %H:%M:%S")
   fl_handler.setFormatter(formatter)
   fl_handler.addFilter(CandidateFilter())
   logger.addHandler(fl_handler)
 
-  modules = [(module, {}) for module in arguments.modules]
-  if arguments.model is not None:
-
-    chosen_model = arguments.model[0].upper()
-    chosen_dir = arguments.model[1]
-
-    if not check_frbid_model(chosen_model, chosen_dir):
-      logger.error("Did not provide a correct configuration for FRBID!")
-      logger.error("Will quit now!")
-      exit()
-
-    modules.append(("frbid", {"model": chosen_model,
-                              "model_dir": chosen_dir}))
-
   # Separate into list of lists of tuples (one inner list per row)
+  """
   plots = [ [(cell[0], float(cell[1:])) for cell in row.split(",")]
             for row in arguments.plots.split(":") ]
 
   modules_abbr = [module[0].upper() for module in arguments.modules]
-
-  configuration = {
-      "base_directory": arguments.directory,
-      "num_watchers": arguments.watchers,
-      "modules": modules,
-      "model": [chosen_model, chosen_dir],
-      "plots": {
-          "plots": plots,
-          "out_chans": arguments.channels,
-          "modules": modules_abbr,
-      }
-  }
-
-  if arguments.config is not None:
-    logger.warning("JSON configuration file provided! \
-                    Some command line options may be overwritten!")
-    configuration = parse_config_file(configuration, arguments.config)
-
-  if ("frbid" not in [module[0] for module in configuration["modules"]]):
-    logger.error("Did not provide configuration for FRBID!")
-    logger.error("Will quit now!")
-    exit()
+  """
 
   pipeline = Pipeline(configuration)
   loop = asyncio.get_event_loop()
