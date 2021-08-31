@@ -1,5 +1,5 @@
 import logging
-import spmodule.spcompute as cm
+import spmodule.sptransform as tm
 
 from typing import Dict, List
 
@@ -29,7 +29,7 @@ class ComputeQueue:
       that the pipeline works correctly. This provide a minimal working
       pipeline, with no extra pre-processing steps.
 
-    _queue: List[ComputeModule]
+    _queue: List[TransformModule]
       Compute modules queue responsible for processing the data.
 
     _idx: int
@@ -59,8 +59,8 @@ class ComputeQueue:
 
     for module, config in modules.items():
       # Follow the naming convention described in the
-      # ComputeModule class docstring
-      self._queue.append(getattr(getattr(cm, module + "module"), module.capitalize() + "Module")(config))
+      # TransformModule class docstring
+      self._queue.append(getattr(getattr(tm, module + "module"), module.capitalize() + "Module")(config))
       
     self._queue.sort(key=lambda val: val.id)
 
@@ -184,7 +184,7 @@ class ComputeQueue:
   def __contains__(self, item: str) -> bool:
 
     for module in self._queue:
-      if isinstance(module, getattr(cm, item.capitalize() + "Module")):
+      if isinstance(module, getattr(tm, item.capitalize() + "Module")):
         return True
 
     return False
@@ -221,7 +221,7 @@ class ComputeQueue:
 
     if isinstance(idx, str):
       for module in self._queue:
-        if isinstance(module, getattr(getattr(cm, idx + "module"), idx.capitalize() + "Module")):
+        if isinstance(module, getattr(getattr(tm, idx + "module"), idx.capitalize() + "Module")):
           return module
 
     raise IndexError

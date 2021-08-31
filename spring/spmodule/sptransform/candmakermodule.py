@@ -9,14 +9,14 @@ from math import ceil
 from numpy import append, array, clip, linspace, logical_not, mean, median
 from numpy import newaxis, random, std
 
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
 # Seconds in a day
 DAY_SEC = 86400.0
 
-class CandmakerModule(ComputeModule):
+class CandmakerModule(TransformModule):
 
   """
 
