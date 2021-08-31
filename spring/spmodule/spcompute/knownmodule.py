@@ -61,7 +61,7 @@ class KnownModule(ComputeModule):
       self._catalogue = "psrcat"
       self._thresh_dist = 1.5
       self._thresh_dm = 5.0
-      self._known_pass_ratio = 0.05
+      self._known_pass_ratio = 0.005
     else:
       self._catalogue = config["catalogue"]
       self._thresh_dist = config["thresh_dist"]
