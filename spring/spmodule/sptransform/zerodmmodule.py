@@ -5,11 +5,11 @@ from typing import Dict
 
 from numpy import mean
 
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class ZerodmModule(ComputeModule):
+class ZerodmModule(TransformModule):
 
   """
   

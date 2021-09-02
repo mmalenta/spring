@@ -9,11 +9,11 @@ from astropy.units import hourangle as ap_ha, deg as ap_deg
 
 from psrmatch import Matcher
 
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class KnownModule(ComputeModule):
+class KnownModule(TransformModule):
 
   """
 

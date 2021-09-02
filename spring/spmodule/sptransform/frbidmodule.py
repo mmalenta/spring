@@ -12,11 +12,11 @@ from keras.models import model_from_json
 from tensorflow import ConfigProto, Session
 
 from FRBID_code.prediction_phase import load_candidate, FRB_prediction
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class FrbidModule(ComputeModule):
+class FrbidModule(TransformModule):
 
   """
 
@@ -256,7 +256,7 @@ class FrbidModule(ComputeModule):
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 
 
-class MultibeamModule(ComputeModule):
+class MultibeamModule(TransformModule):
 
   """
 

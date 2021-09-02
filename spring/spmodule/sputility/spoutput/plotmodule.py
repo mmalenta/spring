@@ -12,11 +12,11 @@ from time import perf_counter
 from typing import Dict
 
 from spcandidate.candidate import Candidate as Cand
-from spmodule.sputility.utilitymodule import UtilityModule
+from spmodule.sputility.spoutput.outputmodule import OutputModule
 
 logger = logging.getLogger(__name__)
 
-class PlotModule(UtilityModule):
+class PlotModule(OutputModule):
 
   """
 

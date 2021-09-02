@@ -5,11 +5,11 @@ from typing import Dict
 
 from mtcutils.core import normalise
 from mtcutils import iqrm_mask as iqrm
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class IqrmModule(ComputeModule):
+class IqrmModule(TransformModule):
 
   """
 

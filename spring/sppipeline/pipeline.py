@@ -13,9 +13,9 @@ import pika
 
 from numpy import array, float32, ones
 
-from spmodule.sputility.watchmodule import WatchModule
-from spmodule.sputility.plotmodule import PlotModule
-from spmodule.sputility.archivemodule import ArchiveModule
+from spmodule.sputility.spinput.watchmodule import WatchModule
+from spmodule.sputility.spoutput.plotmodule import PlotModule
+from spmodule.sputility.spoutput.archivemodule import ArchiveModule
 from sppipeline.filmanager import FilManager
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateManager
@@ -61,7 +61,7 @@ class Pipeline:
     _archive_module: UtilityModule
       Module responsible for creating the candidate HDF5 archives.
 
-    _module_queue: List[ComputeModule]
+    _module_queue: List[TransformModule]
       List of modules responsible for processing of candidates.
 
     _candidate_queue: CandQueue
@@ -104,7 +104,7 @@ class Pipeline:
     self._candidate_manager.start()
     self._candidate_queue = self._candidate_manager.CandidateQueue()
 
-    self._module_queue = ComputeQueue(config["modules"]["compute"], self._fil_table)
+    self._module_queue = ComputeQueue(config["modules"], self._fil_table)
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
