@@ -1,4 +1,5 @@
 import matplotlib
+from numpy.core.fromnumeric import var
 matplotlib.use('Agg')
 
 import argparse as ap
@@ -13,6 +14,7 @@ from typing import Dict
 from json import load
 
 from sppipeline.pipeline import Pipeline
+from sppipeline.configuration import Configuration
 
 logger = logging.getLogger()
 
@@ -168,7 +170,7 @@ def main():
                       required=False,
                       type=str)
 
-  parser.add_argument("-l", "--log",
+  parser.add_argument("-l", "--log_level",
                       help="Log level", 
                       required=False,
                       type=str,
@@ -187,7 +189,7 @@ def main():
 
   """
   parser.add_argument("-m", "--modules",
-                      help="Optional modules to enable",
+                      help="Transform modules to enable",
                       required=False,
                       # If used, require at least one extra module
                       nargs="+",
@@ -224,12 +226,10 @@ def main():
 
   arguments = parser.parse_args()
 
-  configuration = {
-      "base_directory": None,
-      "log_level": None,
-      "num_watchers": None,
-      "modules": None,
-  }
+  config_parser = Configuration(vars(arguments))
+  config_parser.parse_configuration()
+  config_parser.print_configuration()
+  configuration = config_parser.get_configuration()
 
   """
       ## Put that as part of modules
@@ -240,15 +240,6 @@ def main():
       }
   """
 
-  if arguments.config is not None:
-    configuration = parse_config_file(configuration, arguments.config)
-
-  # We want to correct log level as soon as possible
-  # Parsing logging only uses error logs, so it will always be passed
-  if ("log" in arguments):
-    print("Overwriting the log level")
-    configuration["log_level"] = arguments.log
-
   logging.addLevelName(15, "CANDIDATE")
   logger.setLevel(getattr(logging, configuration["log_level"].upper()))
   # Might set a separate file handler for warning messages
@@ -257,35 +248,6 @@ def main():
   cl_handler.setFormatter(ColouredFormatter())
   logger.addHandler(cl_handler)
   
-  args_dir = vars(arguments)
-
-  if "config" in args_dir:
-    del args_dir["config"]
-
-  if len(args_dir) >= 1:
-    overwrite_keys = args_dir.keys()
-    logger.warning("Configuration for \033[;1m%s\033[0m will be overwritten",
-                    ", ".join(overwrite_keys))
-
-    for key, val in args_dir.items():
-
-      print(key)
-
-      if key == "model":
-        chosen_model = arguments.model[0].upper()
-        chosen_dir = arguments.model[1]
-
-        if not check_frbid_model(chosen_model, chosen_dir):
-          logger.error("Did not provide a correct configuration for FRBID!")
-          logger.error("Will quit now!")
-          exit()
-        else:
-          configuration["modules"]["frbid"]["model"] = chosen_model
-          configuration["modules"]["frbid"]["nodel_dir"] = chosen_dir
-
-      else:
-        configuration[key] = val
-
 
   fl_handler = logging.FileHandler(path.join(configuration["base_directory"], "candidates.dat"))
   formatter = logging.Formatter("%(asctime)s: %(message)s",

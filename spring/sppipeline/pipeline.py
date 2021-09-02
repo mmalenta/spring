@@ -86,12 +86,15 @@ class Pipeline:
     self._running = False
     self._paused = False
 
-    self._watch_module = WatchModule(config["base_directory"],
-                                        config["num_watchers"])
+    intput_configs = config["modules"]["utility"]["input"]
+    output_configs = config["modules"]["utility"]["output"]
 
-    self._plot_module = PlotModule(config["modules"]["plot"])
+    self._watch_module = WatchModule(intput_configs["watcher"]["base_directory"],
+                                      intput_configs["watcher"]["num_watchers"])
+
+    self._plot_module = PlotModule(output_configs["plot"])
     # This currently does not have any options
-    self._archive_module = ArchiveModule(config["modules"]["archive"])
+    self._archive_module = ArchiveModule(output_configs["archive"])
 
     self._fil_manager = FilManager()
     self._fil_manager.start()
@@ -104,7 +107,7 @@ class Pipeline:
     self._candidate_manager.start()
     self._candidate_queue = self._candidate_manager.CandidateQueue()
 
-    self._module_queue = ComputeQueue(config["modules"], self._fil_table)
+    self._module_queue = ComputeQueue(config["modules"]["transform"], self._fil_table)
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
