@@ -5,7 +5,7 @@ from glob import glob
 from json import load
 from os import path, scandir, stat
 from pandas import read_csv
-from pandas.errors import EmptyDataError
+from pandas.errors import EmptyDataError, ParserError
 from struct import unpack
 from retry.api import retry_call
 from time import mktime, perf_counter, strptime, sleep
@@ -185,12 +185,13 @@ class WatchModule(UtilityModule):
               try:
 
                 cands = retry_call(self._read_spccl, fargs=[full_dir],
-                                    exceptions=(FileNotFoundError, EmptyDataError),
+                                    exceptions=(FileNotFoundError, 
+                                                EmptyDataError,
+                                                ParserError),
                                     tries=int(self._spccl_wait_sec / 0.5),
                                     delay=0.5)
 
               except FileNotFoundError:
-
                 logger.error("No .spccl file under %s after %.2f seconds. "
                                 "Will try again during the next iteration!",
                                 full_dir,
@@ -198,8 +199,14 @@ class WatchModule(UtilityModule):
                 continue
 
               except EmptyDataError:
-
                 logger.error("Empty .spccl file under %s after %.2f seconds. "
+                                "Will try again during the next iteration!",
+                                full_dir,
+                                self._spccl_wait_sec)
+                continue
+
+              except ParserError:
+                logger.error("Incomplete .spccl file under %s after %.2f seconds. "
                                 "Will try again during the next iteration!",
                                 full_dir,
                                 self._spccl_wait_sec)
@@ -590,6 +597,10 @@ class WatchModule(UtilityModule):
     # the EmptyDataError exception
     spccl_cands = read_csv(spccl_file[0], delimiter="\s+", 
                             header=None, skiprows=1)
+    # Check if there are any NaNs and wait
+    if spccl_cands.isnull().values.any():
+      raise ParserError("Incomplete spccl file under %s" % beam_dir)
+    
     spccl_cands.columns = self._spccl_header
 
     return spccl_cands
