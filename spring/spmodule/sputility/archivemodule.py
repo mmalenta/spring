@@ -4,7 +4,7 @@ from os import path
 from typing import Dict
 
 import h5py as h5
-from numpy import frombuffer, fromfile, uint8
+from numpy import frombuffer, fromfile, uint8, zeros
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
@@ -102,17 +102,28 @@ class ArchiveModule(UtilityModule):
       # original format to avoid any need for extra conversion or
       # combining of header and data chunks of the file
       if save_fil_data:
-        logger.debug("Adding filterbank file %s to the archive",
-                      fil_metadata["fil_file"])
-        file_path = path.join(fil_metadata["full_dir"],
-                            fil_metadata["fil_file"])
 
-        fil_data = fromfile(file_path, dtype='B')
-        # Store the filterbank data in uncompressed form
-        # We do not gain too much in terms of size reduction, but we
-        # lose quite a lot in processing time
-        filterbank_dataset = detection_group.create_dataset("filterbank",
-                                                            data=fil_data)
+        try:
+        
+          logger.debug("Adding filterbank file %s to the archive",
+                      fil_metadata["fil_file"])
+          file_path = path.join(fil_metadata["full_dir"],
+                                fil_metadata["fil_file"])
+          fil_data = fromfile(file_path, dtype='B')
+          # Store the filterbank data in uncompressed form
+          # We do not gain too much in terms of size reduction, but we
+          # lose quite a lot in processing time
+          filterbank_dataset = detection_group.create_dataset("filterbank",
+                                                              data=fil_data)
+        
+        except FileNotFoundError:
+
+          logger.warning("Filterbank file %s not found! "
+                          "It will not be added to the archive!",
+                          fil_metadata["fil_file"])
+          filterbank_dataset = detection_group.create_dataset("filterbank",
+                                                              data=h5.Empty("uint8"))
+
         # Store all the header values for easier access
         for key, value in fil_metadata.items():
           filterbank_dataset.attrs[key] = value
