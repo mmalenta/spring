@@ -5,6 +5,7 @@ from glob import glob
 from json import load
 from os import path, scandir, stat
 from pandas import read_csv
+from pandas.errors import EmptyDataError, ParserError
 from struct import unpack
 from retry.api import retry_call
 from time import mktime, perf_counter, strptime, sleep
@@ -135,20 +136,26 @@ class WatchModule(InputModule):
 
     dirs_data = self._get_current_dirs()
 
+    ### IMPORTANT ###
+    # Due to the asynchronous nature of candidate processing .spccl
+    # file will be written to before the filterbank file is saved
+    # IN MOST CASES, but there is still a chance that a filterbank
+    # file will be written first
+
     while True:
 
       try:
 
+        # Loops over directories
         for data in dirs_data:
-
-          last_file = data["last_file"]
-
+          # Loops over beams within a single directory
           for ibeam in data["logs"]:
 
             # Operate using relative beam numbers
             rel_number = ibeam["beam_rel"]
             full_dir = path.join(data["dir"], "beam"
                                  + "{:02}".format(rel_number))
+            processed_files = data["processed_files"][rel_number]
 
             # Check if the directory exists
             # Should fire only if something goes really wrong
@@ -165,8 +172,7 @@ class WatchModule(InputModule):
             all_files = scandir(full_dir)
 
             for ifile in all_files:
-              if (ifile.name.endswith("fil")
-                  and (ifile.stat().st_mtime > last_file[rel_number])):
+              if ifile.name.endswith("fil") and ifile.name not in processed_files:
                 fil_files.append([ifile.name, ifile.stat().st_mtime,
                                   ifile.stat().st_size])
 
@@ -175,45 +181,35 @@ class WatchModule(InputModule):
 
             # Get the newest file time per beam
             if len(fil_files) > 0:
-              last_file[rel_number] = max(fil_files, key = lambda ff: ff[1])[1]
 
-              # Check if the .spccl file exists
-              cand_file = glob(path.join(full_dir, "*.spccl"))
+              try:
 
-              waited = 0.0
+                cands = retry_call(self._read_spccl, fargs=[full_dir],
+                                    exceptions=(FileNotFoundError, 
+                                                EmptyDataError,
+                                                ParserError),
+                                    tries=int(self._spccl_wait_sec / 0.5),
+                                    delay=0.5)
 
-              while((len(cand_file) == 0) and waited < self._spccl_wait_sec):
-                if len(cand_file) == 0:
-                  logger.warning("No .spccl file found yet under %s. \
-                                 Waiting...", full_dir)
-                  sleep(0.1)
-                  cand_file = glob(path.join(full_dir, "*.spccl"))
-                  waited = waited + 0.1
-
-              if waited >= self._spccl_wait_sec:
-                logger.error("No valid .spccl file after %.2f seconds \
-                             under %s. Will reset filterbank candidates",
-                             self._spccl_wait_sec, full_dir)
-                last_file[rel_number] = 0
+              except FileNotFoundError:
+                logger.error("No .spccl file under %s after %.2f seconds. "
+                                "Will try again during the next iteration!",
+                                full_dir,
+                                self._spccl_wait_sec)
                 continue
 
-              cands = read_csv(cand_file[0], delimiter="\s+", 
-                               names=self._spccl_header, skiprows=1)
+              except EmptyDataError:
+                logger.error("Empty .spccl file under %s after %.2f seconds. "
+                                "Will try again during the next iteration!",
+                                full_dir,
+                                self._spccl_wait_sec)
+                continue
 
-              waited = 0.0
-              while ((len(cands) == 0) and waited < self._spccl_wait_sec):
-                logger.warning("No candidates in .spccl file under %s. \
-                               Waiting...", full_dir)
-                sleep(0.1)
-                cands = read_csv(cand_file[0], delimiter="\s+", 
-                                 names=self._spccl_header, skiprows=1)
-                waited = waited + 0.1
-
-              if waited >= self._spccl_wait_sec:
-                logger.error("Empty .spccl file after %.2f seconds \
-                             under %s. Will reset filterbank candidates",
-                             self._spccl_wait_sec, full_dir)
-                last_file[rel_number] = 0
+              except ParserError:
+                logger.error("Incomplete .spccl file under %s after %.2f seconds. "
+                                "Will try again during the next iteration!",
+                                full_dir,
+                                self._spccl_wait_sec)
                 continue
 
               for ifile in fil_files:
@@ -227,23 +223,18 @@ class WatchModule(InputModule):
                   # This is less than ideal, as there is no guarantee
                   # that the file size will increase between getting the
                   # .fil file list and now, but it's all we have now
-                  # TODO: Need a guard just in case it fails completely
-                  # and we get a file with less than the header size
-                  # saved - just have a wait time as in other cases
-                  waited = 0.0
-                  while (((ff.seek(0, 2) < self._fil_header_size) or 
-                          (stat(file_path).st_size > ifile[2])) and
-                         waited < self._fil_wait_sec):
-                    logger.info("File %s is being written into", file_path)
+                  try:
 
-                    sleep(0.1)
-                    # Update new size
-                    ifile[2] = stat(file_path).st_size
-                    waited = waited + 0.1
+                    retry_call(self._check_fil_write,
+                                fargs=[ff, ifile, file_path],
+                                exceptions=(RuntimeError),
+                                tries=int(self._fil_wait_sec / 0.5),
+                                delay=0.5)
 
-                  if waited >= self._fil_wait_sec:
+                  except RuntimeError:
+
                     logger.error("File %s not complete after %.2f seconds",
-                                 file_path, self._fil_wait_sec)
+                                  file_path, self._fil_wait_sec)
                     continue
 
                   ff.seek(0, 0)
@@ -292,8 +283,9 @@ class WatchModule(InputModule):
                     cand_queue.put_candidate((0, Cand(cand_dict)))
                     logger.debug("Candidate queue size is now %d",
                                  cand_queue.qsize())
-          # Update the newest file times for all the beams
-          data["last_file"] = last_file
+
+                  # Only append the file if it was properly processed
+                  processed_files.add(ifile[0])
 
         logger.info("Recalculating directories...")
         dirs_data = self._get_current_dirs(dirs_data)
@@ -309,6 +301,9 @@ class WatchModule(InputModule):
         return
     
     # End of while loop
+
+
+
 
   def _get_current_dirs(self, current_directories: List = []) -> List:
 
@@ -421,7 +416,7 @@ class WatchModule(InputModule):
                     "logs": dir_logs,
                     "total_fil": 0,
                     "new_fil": 0,
-                    "last_file": [0] * num_beams,
+                    "processed_files": [set() for _ in range(num_beams)],
                     "total_cands": [0] * num_beams,
                     "new_cands": [0] * num_beams,
                     "last_cand": [0] * num_beams})
@@ -438,6 +433,39 @@ class WatchModule(InputModule):
       current_directories = tmp_current_directories
 
     return current_directories
+
+  def _check_fil_write(self, file_buffer, file_meta, file_path):
+
+    """
+    
+    Check if the filterbank file is being written into.
+
+    Currently does a very simple test where the size of the file is
+    expected to be greater than the header file. This will catch a very
+    fresh file in some cases, but it has to be improved further.
+
+    Parameters:
+
+      file_buffer: BufferedReader
+        Open filterbank file buffer.
+
+      file_meta: List
+        Basic file information such as name modification time and size.
+      
+      file_path: str
+        Full filterbank file path including the directory and filename.
+
+    Returns:
+
+      None
+
+    """
+
+    if ( (file_buffer.seek(0, 2) < self._fil_header_size) or 
+        (stat(file_path).st_size > file_meta[2]) ):
+
+      file_meta[2] = stat(file_path).st_size
+      raise RuntimeError("File %s is smaller than the header size" % file_path)
 
   def _read_logs(self, directory: str, 
                  log_file: str = "run_summary.json") -> List:
@@ -529,3 +557,50 @@ class WatchModule(InputModule):
     }
 
     return header
+
+  def _read_spccl(self, beam_dir):
+
+    """
+    
+    Read the candidate .spccl file into pandas DataFrame.
+
+    Parameters:
+
+      beam_dir: str
+        Beam directory where the candidate .spccl file is expected
+        to be.
+    
+    Raises:
+
+      FileNotFoundError:
+        When candidate .spccl file is not present.
+
+      EmptyDataError:
+        When there are no candidates in the .spccl file.
+
+    Returns:
+
+        : DataFrame
+        Pandas DataFrame with all the candidates currently present in
+        the .spccl file. Information includes candidate MJD, DM,
+        Width (ms) and SNR.
+
+    """
+
+    spccl_path = path.join(beam_dir, "*.spccl")
+    spccl_file = glob(spccl_path)
+
+    if len(spccl_file) == 0:
+      raise FileNotFoundError("No spccl file under %s" % beam_dir)
+
+    # This is a weird way of doing it, but it will trigger
+    # the EmptyDataError exception
+    spccl_cands = read_csv(spccl_file[0], delimiter="\s+", 
+                            header=None, skiprows=1)
+    # Check if there are any NaNs and wait
+    if spccl_cands.isnull().values.any():
+      raise ParserError("Incomplete spccl file under %s" % beam_dir)
+    
+    spccl_cands.columns = self._spccl_header
+
+    return spccl_cands
