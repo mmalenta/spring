@@ -260,6 +260,7 @@ class Pipeline:
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     channel = connection.channel()
+    channel.basic_qos(prefetch_count=5)
     hostname = gethostname()
     channel.queue_declare("archiving_" + hostname, durable=True)
     channel.queue_bind("archiving_" + hostname, "post_processing")
