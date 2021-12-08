@@ -39,7 +39,7 @@ class ZerodmModule(TransformModule):
     logger.info("ZeroDM module initialised")
 
 
-  async def process(self, metadata : Dict) -> None:
+  async def process(self) -> None:
 
     """"
 
@@ -49,9 +49,7 @@ class ZerodmModule(TransformModule):
 
     Parameters:
 
-      metadata: Dict
-        Dictionary with all the necessary candidate information. 
-        Contains the the array with the filterbank data.
+      None
 
     Returns:
 

@@ -110,7 +110,7 @@ class CandmakerModule(TransformModule):
       data = clip(data, -1.0 * clip_range, clip_range) 
     return data
 
-  async def process(self, metadata : Dict) -> None:
+  async def process(self) -> None:
 
     """
 
@@ -125,11 +125,7 @@ class CandmakerModule(TransformModule):
 
     Parameters:
 
-      metadata: Dict
-        Dictionary with all the necessary candidate information. 
-        Contains the the array with the filterbank data, filterbank
-        metadata with all the filterbank header information and candidate
-        metadata with all the candidate detection information.
+      None
 
     Returns:
 

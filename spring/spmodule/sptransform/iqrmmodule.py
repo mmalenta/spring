@@ -37,7 +37,7 @@ class IqrmModule(TransformModule):
     logger.info("IQRM module initialised")
 
 
-  async def process(self, metadata : Dict):
+  async def process(self) -> None:
 
     """"
 
@@ -48,9 +48,7 @@ class IqrmModule(TransformModule):
 
     Parameters:
 
-      metadata: Dict
-        Dictionary with all the necessary candidate information. 
-        Contains the the array with the filterbank data.
+      None
 
     Returns:
 

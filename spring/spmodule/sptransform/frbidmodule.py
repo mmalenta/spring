@@ -81,6 +81,8 @@ class FrbidModule(TransformModule):
     self._model.load_weights(path.join(config["model_dir"],
                                         config["model"] + ".h5"))
 
+    self._threshold = config["threshold"]
+
     self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     self._channel = self._connection.channel()
 
@@ -127,7 +129,7 @@ class FrbidModule(TransformModule):
 
     self._out_queue = out_queue
 
-  async def process(self, metadata: Dict) -> None:
+  async def process(self) -> None:
 
     """
 
@@ -144,11 +146,7 @@ class FrbidModule(TransformModule):
 
 		Parameters:
 
-			metadata: Dict
-				Metadata information for the FRBID processing. Currently
-				includes hardcoded values for the model name (NET3)
-				and probability threshold for assigning the candidate
-				label of 1 (0.5)
+			None
 
 		Returns:
 
@@ -162,7 +160,7 @@ class FrbidModule(TransformModule):
 
     pred_data = load_candidate(self._data.ml_cand)
     prob, label = FRB_prediction(model=self._model, X_test=pred_data,
-                                  probability=metadata["threshold"])
+                                  probability=self._threshold)
 
     pred_end = perf_counter()
 

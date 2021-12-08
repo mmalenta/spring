@@ -175,39 +175,11 @@ class Pipeline:
 
       try:
 
-        # This will be gone at some point
-        metadata = {
-          "known": {
-
-          },
-          "iqrm": {
-
-          },
-          "threshold": {
-          },
-          "zerodm": {
-          },
-          "mask": {
-              "multiply": True,
-              "mask": array([0, 1, 1, 0])
-          },
-          "candmaker": {
-          },
-          "frbid": {
-            "model": "NET3",
-            "threshold": 0.5,
-          },
-          "multibeam": {
-          }
-        }
-
         cand_data = cand_queue.get_candidate()[1]
         self._module_queue[0].initialise(cand_data)
 
-        metadata["mask"]["mask"] = ones(cand_data.metadata["fil_metadata"]["nchans"]).astype(float32)
-
         for module in self._module_queue:
-          if await module.process(metadata[(module.__class__.__name__[:-6]).lower()]) is not None:
+          if await module.process() is not None:
             break
 
         logger.debug("Candidate finished processing %.4fs\

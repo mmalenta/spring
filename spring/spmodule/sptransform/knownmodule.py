@@ -80,7 +80,7 @@ class KnownModule(TransformModule):
     self._matcher.create_search_tree()
     logger.info("Known source module initialised")
 
-  async def process(self, metadata: Dict):
+  async def process(self):
 
     """
     
@@ -90,6 +90,10 @@ class KnownModule(TransformModule):
     in the processing chain. A small percentage of known candidates
     is passed for quality checks. Additional metadata is added when
     this happens
+
+    Parameters:
+
+      None
 
     Returns:
 
