@@ -94,16 +94,20 @@ class Configuration():
 
       if key == "modules":
 
-        for module in value:
+        for module, module_config in value["transform"].items():
 
-          # Use the default module configuration for all the CL modules,
-          # but only print out warning if the JSON configuration will
-          # be overwritten
           if module in self._parsed_config["modules"]["transform"]:
-            logger.warning("Overwriting module \033[;1m%s\033[0m "
-                            "with default configuration!", module)
-          self._parsed_config["modules"]["transform"][module] = {}
+            if module_config:
+              logger.warning("Overwriting module \033[;1m%s\033[0m "
+                            "with provided configuration!", module)
 
+              # Currently use individual key/value pairs to overwrite
+              # the pairs provided in the JSON config file
+              for config_key, config_value in module_config.items():
+                self._parsed_config["modules"]["transform"][module][config_key] = config_value
+            else:
+              logger.warning("Removing module %s from the processing", module)
+              del self._parsed_config["modules"]["transform"][module]
       else:
 
         self._parsed_config[key] = value

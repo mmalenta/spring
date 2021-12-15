@@ -18,6 +18,60 @@ from sppipeline.configuration import Configuration
 
 logger = logging.getLogger()
 
+class ModulesAction(ap.Action):
+  def __init__(self, option_strings, dest, nargs=None, **kwargs):
+    super(ModulesAction, self).__init__(option_strings, dest, nargs, **kwargs)
+
+  def __call__(self, parser, namespace, values, option_string=None):
+
+    modules = { "transform": {}}
+
+    for module in values:
+
+      # Don't include empty strings in case something like "frbid,"
+      # or "," is passed by mistake
+      module_config = [s for s in module.split(',') if s]
+
+      if len(module_config) == 1:
+        module_toggle = module_config[0].split('=')
+        module_name = module_toggle[0]
+        if (len(module_toggle) == 2
+            and (module_toggle[1] == "disable")):
+          print(f"Disabling module {module_name}")
+          modules["transform"][module_name] = False
+        elif (len(module_toggle) == 1):
+          print(f"Enabling module {module_name} with empty configuration")
+          modules["transform"][module_name] = {}
+        else:
+          print("Unrecognised options, "
+                  f"will not enable module {module_name}")
+      else:
+        module_toggle = module_config[0].split('=')
+        module_name = module_toggle[0]
+        if (len(module_toggle) == 2
+            and (module_toggle[1] == "disable")):
+          print(f"Disabling module {module_name}, "
+                  "will ignore provided configuration")
+          modules["transform"][module_name] = False
+        elif (len(module_toggle) == 1):
+          print(f"Enabling module {module_name} "
+                  "with provided configuration")
+
+          module_params = module_config[1:]
+          params_dict = {}
+
+          for param in module_params:
+
+            key, value, *extras = param.split("=")
+            if extras:
+              print(f"Will ignore extra values for parameter {key}")
+            
+            params_dict[key] = value
+
+          modules["transform"][module_name] = params_dict
+
+    setattr(namespace, self.dest, modules)
+
 class ColouredFormatter(logging.Formatter):
 
   custom_format = "[%(asctime)s] [%(process)d %(processName)s] [\033[1;{0}m%(levelname)s\033[0m] [%(module)s] %(message)s"
@@ -83,16 +137,13 @@ def main():
                       required=False,
                       type=int)
 
-  """
   parser.add_argument("-m", "--modules",
                       help="Transform modules to enable",
+                      action=ModulesAction,
                       required=False,
                       # If used, require at least one extra module
                       nargs="+",
-                      type=str,
-                      choices=["known", "iqrm", "zerodm", "threshold", "mask",
-                               "multibeam", "plot", "archive"])
-  """
+                      type=str)
 
   parser.add_argument("--model", help="Model name and model directory",
                       required=False,
@@ -127,15 +178,6 @@ def main():
   config_parser.print_configuration()
   configuration = config_parser.get_configuration()
 
-  """
-      ## Put that as part of modules
-      "plots": {
-          "plots": plots,
-          "out_chans": arguments.channels,
-          "modules": modules_abbr,
-      }
-  """
-
   logging.addLevelName(15, "CANDIDATE")
   logger.setLevel(getattr(logging, configuration["log_level"].upper()))
   # Might set a separate file handler for warning messages
@@ -144,7 +186,6 @@ def main():
   cl_handler.setFormatter(ColouredFormatter())
   logger.addHandler(cl_handler)
   
-
   fl_handler = logging.FileHandler(path.join(configuration["base_directory"], "candidates.dat"))
   formatter = logging.Formatter("%(asctime)s: %(message)s",
                                 datefmt="%a %Y-%m-%d %H:%M:%S")
