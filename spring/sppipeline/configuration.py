@@ -242,4 +242,15 @@ class Configuration():
     
     """
 
-    print(self._parsed_config)   
+    def __print_config_param(indent, config):
+
+      for key, value in config.items():
+        if type(value) is dict:
+          print(f"{indent} {key}:")
+          __print_config_param(indent + "--", value)
+        else:
+          print(f"{indent} {key}: {value}")
+
+    print("\033[;1m\nConfiguration:\033[0m")
+    __print_config_param("  ", self._parsed_config)
+    print("")
