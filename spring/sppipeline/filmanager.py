@@ -137,41 +137,47 @@ class FilDataTable:
 
         logger.info("Reading filterbank %s into the data table", full_name)
 
-        fil_data = self._read_filterbank(filterbank["full_dir"],
+        try:
+          fil_data = self._read_filterbank(filterbank["full_dir"],
                                           filterbank["fil_file"])
-        
-        fil_header = copy(fil_data[:filterbank["header_size"]])
-        fil_data = fil_data[filterbank["header_size"]:]
-        # Just in case we do not have a full filterbank written
-        # This can happen when pipeline is stopped during the write
-        nchans = filterbank["nchans"]
-        time_samples = int(floor(fil_data.size / nchans))
-        fil_data = reshape(fil_data[:(time_samples * nchans)],
-                          (time_samples, nchans)).astype(float32).T
-
-        if self._current_size + fil_data.size <= self._size_limit:
-          self._data[full_name] = {"header": fil_header,
-                                              "data": fil_data,
-                                              "ref_counter": 1}
-        
-          # Take just the filterbank file into account - this is the main
-          # contribution to the data table size
-          self._current_size += fil_data.size
-          logger.info("Current data table size: %dB/%.2fMiB",
-                        self._current_size,
-                        self._current_size / 1024.0 / 1024.0)
-
-          return (self._data[full_name]["data"], "orig")
-
+        except FileNotFoundError:
+          logger.error("Filterbank %s not found! Has it been removed?",
+                        full_name)
+          raise
         else:
 
-          logger.warning("Exceeded the allowed size of the data table!")
-          logger.warning("Filterbank %s will not be put in the data table!",
-                          full_name)
-          # Don't put any entries in the data table
-          # Just return the data - every candidate will have to read the
-          # data, same goes for the archive
-          return (fil_data, "orig")
+          fil_header = copy(fil_data[:filterbank["header_size"]])
+          fil_data = fil_data[filterbank["header_size"]:]
+          # Just in case we do not have a full filterbank written
+          # This can happen when pipeline is stopped during the write
+          nchans = filterbank["nchans"]
+          time_samples = int(floor(fil_data.size / nchans))
+          fil_data = reshape(fil_data[:(time_samples * nchans)],
+                            (time_samples, nchans)).astype(float32).T
+
+          if self._current_size + fil_data.size <= self._size_limit:
+            self._data[full_name] = {"header": fil_header,
+                                      "data": fil_data,
+                                      "ref_counter": 1}
+        
+            # Take just the filterbank file into account - this is the main
+            # contribution to the data table size
+            self._current_size += fil_data.size
+            logger.info("Current data table size: %dB/%.2fMiB",
+                          self._current_size,
+                          self._current_size / 1024.0 / 1024.0)
+
+            return (self._data[full_name]["data"], "orig")
+
+          else:
+
+            logger.warning("Exceeded the allowed size of the data table!")
+            logger.warning("Filterbank %s will not be put in the data table!",
+                            full_name)
+            # Don't put any entries in the data table
+            # Just return the data - every candidate will have to read the
+            # data, same goes for the archive
+            return (fil_data, "orig")
 
 
   def update_data(self, filterbank):
@@ -260,20 +266,27 @@ class FilDataTable:
 
         logger.info("Filterbank %s not in the data table", 
                     full_name)
-        fil_data = self._read_filterbank(filterbank["full_dir"],
-                                      filterbank["fil_file"])
 
-        fil_header = copy(fil_data[:filterbank["header_size"]])
-        fil_data = fil_data[filterbank["header_size"]:]
-        # Just in case we do not have a full filterbank written
-        # This can happen when pipeline is stopped during the write
-        nchans = filterbank["nchans"]
-        time_samples = int(floor(fil_data.size / nchans))
-        fil_data = reshape(fil_data[:(time_samples * nchans)],
-                          (time_samples, nchans)).astype(float32).T
+        try:
+          fil_data = self._read_filterbank(filterbank["full_dir"],
+                                            filterbank["fil_file"])
+        except FileNotFoundError:
+          logger.error("Filterbank %s not found! Has it been removed?",
+                        full_name)
+          raise
+        else:
 
-        return {"header": fil_header,
-                "data": fil_data}                
+          fil_header = copy(fil_data[:filterbank["header_size"]])
+          fil_data = fil_data[filterbank["header_size"]:]
+          # Just in case we do not have a full filterbank written
+          # This can happen when pipeline is stopped during the write
+          nchans = filterbank["nchans"]
+          time_samples = int(floor(fil_data.size / nchans))
+          fil_data = reshape(fil_data[:(time_samples * nchans)],
+                            (time_samples, nchans)).astype(float32).T
+
+          return {"header": fil_header,
+                  "data": fil_data}                
 
   def _read_filterbank(self, fil_dir: str, fil_file: str):
 
