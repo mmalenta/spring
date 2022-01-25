@@ -45,7 +45,7 @@ class FrbidModule(TransformModule):
     _model: Keras model
       Preloaded Keras model including weights
 
-    _out_queue: CandQueue
+    _out_queue: Dict
       Queue for sending candidates to plotting and archiving.
 
     _connection: BlockingConnection
@@ -118,7 +118,7 @@ class FrbidModule(TransformModule):
 
     Parameters:
 
-      out_queue: CandQueue
+      out_queue: Dict
         Queue for sending candidates to archiving.
 
     Returns:
@@ -184,7 +184,8 @@ class FrbidModule(TransformModule):
 
     # We add everything to the archiving
     cand_hash = str(hash(str(cand_metadata["dm"]) + str(cand_metadata["mjd"])
-                      + str(self._data.metadata["beam_metadata"]["beam_abs"])))
+                      + str(self._data.metadata["beam_metadata"]["beam_abs"])
+                      + self._data.metadata["fil_metadata"]["fil_file"]))
 
     cand_metadata["cand_hash"] = cand_hash
     # No need to store the filterbank file data

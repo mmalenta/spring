@@ -141,26 +141,32 @@ class ComputeQueue:
 
         if self._idx != 0:
           self._queue[self._idx].set_input(self._queue[self._idx - 1].get_output())
-          
-        self._data_state = self._queue[self._idx].read_filterbank(self._fil_table)
 
-        # Decide which module to call next, depending on the state of
-        # the filterbank data in the data table.
-        # If the data is marked as cleaned, that means it was processed
-        # with the previous candidate and all the cleaning has been
-        # applied - skip the cleaning then and proceed to processing
-        if self._data_state == "clean":
-          run_idx = self._first_p_idx
-          # Correctly set up the data for the first module
-          # This will contain the metadata and the filterbank data
-          # read above
-          self._queue[run_idx].set_input(self._queue[self._idx].get_output())
-        # If the data was not there and we get the origina filterbank
-        # fiele, proceed as normal to cleaning
-        else: 
-          run_idx = self._idx
-          # No need to read anything here - the metadata was passed
-          # and the filterbank was read into the correct module above
+        try:
+          self._data_state = self._queue[self._idx].read_filterbank(self._fil_table)
+        except FileNotFoundError:
+          # We cannot continue without the data
+          logger.error("Can no longer process the file!")
+          raise StopIteration
+        else:
+
+          # Decide which module to call next, depending on the state of
+          # the filterbank data in the data table.
+          # If the data is marked as cleaned, that means it was processed
+          # with the previous candidate and all the cleaning has been
+          # applied - skip the cleaning then and proceed to processing
+          if self._data_state == "clean":
+            run_idx = self._first_p_idx
+            # Correctly set up the data for the first module
+            # This will contain the metadata and the filterbank data
+            # read above
+            self._queue[run_idx].set_input(self._queue[self._idx].get_output())
+          # If the data was not there and we get the origina filterbank
+          # fiele, proceed as normal to cleaning
+          else: 
+            run_idx = self._idx
+            # No need to read anything here - the metadata was passed
+            # and the filterbank was read into the correct module above
 
       else:
 

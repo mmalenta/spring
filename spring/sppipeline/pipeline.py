@@ -240,23 +240,27 @@ class Pipeline:
       ch.basic_ack(delivery_tag=method.delivery_tag)
 
       try:
-
         cand_data = cand_table[message["cand_hash"]]
-
       except KeyError: 
-
         logger.error("Candidate with hash %s "
                       "not present in the candidate table",
                       message["cand_hash"])
-
       else:
 
         save_fil_data = (cand_data.metadata["cand_metadata"]["label"] or
                           cand_data.metadata["cand_metadata"]["known"])
         # We need the filterbank data for the plotting
-        cand_data.data = fil_table.remove_candidate(cand_data.metadata["fil_metadata"])
-        plot_module.plot(cand_data)
-        archive_module.archive(cand_data, save_fil_data)
+        try:
+          cand_data.data = fil_table.remove_candidate(cand_data.metadata["fil_metadata"])
+        except FileNotFoundError:
+          # We can get an exception if the data table size was exceeded
+          # and we can no longer store filterbank files in it and 
+          # therefore have to read them from the disk after they were
+          # removed
+          logger.error("Can no longer plot and archive the file!")
+        else:  
+          plot_module.plot(cand_data)
+          archive_module.archive(cand_data, save_fil_data)
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     channel = connection.channel()
