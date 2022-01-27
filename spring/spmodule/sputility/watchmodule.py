@@ -9,7 +9,7 @@ from pandas.errors import EmptyDataError, ParserError
 from struct import unpack
 from retry.api import retry_call
 from time import mktime, perf_counter, strptime, sleep
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from spcandidate.candidate import Candidate as Cand
 from spmodule.sputility.utilitymodule import UtilityModule
@@ -149,7 +149,7 @@ class WatchModule(UtilityModule):
         # Loops over directories
         for data in dirs_data:
           # Loops over beams within a single directory
-          for ibeam in data["logs"]:
+          for ibeam in data["beam_logs"]:
 
             # Operate using relative beam numbers
             rel_number = ibeam["beam_rel"]
@@ -265,6 +265,7 @@ class WatchModule(UtilityModule):
                       "fil_metadata": header,
                       "cand_metadata": {},
                       "beam_metadata": ibeam,
+                      "obs_metadata": data["obs_logs"],
                       "time": perf_counter()
                   }
 
@@ -405,15 +406,16 @@ class WatchModule(UtilityModule):
           # Try getting the run_summary.json file for a full minute
           try:
 
-            dir_logs = retry_call(self._read_logs, fargs=[idir],
+            obs_logs, beam_logs = retry_call(self._read_logs, fargs=[idir],
                                   exceptions=FileNotFoundError,
                                   tries=12,
                                   delay=5,
                                   logger=logger)
-            num_beams = len(dir_logs)
+            num_beams = len(beam_logs)
 
             tmp_current_directories.append({"dir": idir,
-                    "logs": dir_logs,
+                    "beam_logs": beam_logs,
+                    "obs_logs": obs_logs,
                     "total_fil": 0,
                     "new_fil": 0,
                     "processed_files": [set() for _ in range(num_beams)],
@@ -468,7 +470,7 @@ class WatchModule(UtilityModule):
       raise RuntimeError("File %s is smaller than the header size" % file_path)
 
   def _read_logs(self, directory: str, 
-                 log_file: str = "run_summary.json") -> List:
+                 log_file: str = "run_summary.json") -> Tuple[Dict, List]:
 
     """
 
@@ -492,13 +494,24 @@ class WatchModule(UtilityModule):
         List of dictionaries with the relevant beam information. One
         dictionary per beam.
 
+      obs_info: Dict
+        Dictionary with the relevant current observations information.
+        Same dictionary for every candidate using the same JSON file 
+        (these will not change within the same SB).
+
     """
 
     beam_info = []
+    obs_info = {}
 
     with open(path.join(directory, log_file)) as run_file:
 
       run_json = load(run_file)
+
+      obs_info["bw_mhz"] = run_json["data"]["bw"] / 1e+06
+      obs_info["cfreq_mhz"] = run_json["data"]["cfreq"] / 1e+06
+      obs_info["nchan"] = run_json["data"]["nchan"]
+      obs_info["tsamp_ms"] = run_json["data"]["tsamp"] * 1000.0
 
       for beam in run_json["beams"]["list"]:
 
@@ -510,7 +523,7 @@ class WatchModule(UtilityModule):
             "beam_dec": beam["dec_dms"]
         })
 
-    return beam_info
+    return obs_info, beam_info
 
   def _read_header(self, file) -> Dict:
 

@@ -205,6 +205,10 @@ class FrbidModule(ComputeModule):
         "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
         "ra": self._data.metadata["beam_metadata"]["beam_ra"],
         "dec":	self._data.metadata["beam_metadata"]["beam_dec"],
+        "bw_mhz": self._data.metadata["obs_metadata"]["bw_mhz"],
+        "cfreq_mhz": self._data.metadata["obs_metadata"]["cfreq_mhz"],
+        "nchan": self._data.metadata["obs_metadata"]["nchan"],
+        "tsamp_ms": self._data.metadata["obs_metadata"]["tsamp_ms"],
         "cand_hash": cand_hash,
         "time_sent": time(),
         "hostname": gethostname()
