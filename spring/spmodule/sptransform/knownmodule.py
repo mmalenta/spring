@@ -65,21 +65,27 @@ class KnownModule(TransformModule):
       self._allowed_known = True
       self._allowed_known_file = "/config/allowed_known_sources.dat"
             
-      try:
-        self._allowed_known_list = open(self._allowed_known_file, 'r').read().splitlines()
-      except:
-        logger.error("Cannot load allowed known sources file %s! "
-                      "Will use an empty list instead!", 
-                      self._allowed_known_file)
-        self._allowed_known_list = []
-      else:
-        logger.info("Loaded the allowed sources list with %d sources ",
-                      len(self._allowed_known_list))
     else:
       self._catalogue = config["catalogue"]
       self._thresh_dist = config["thresh_dist"]
       self._thresh_dm = config["thresh_dm"]
       self._known_pass_ratio = config["known_pass_ratio"]
+      self._allowed_known = config["allowed_known"]
+      if self._allowed_known == True:
+        self._allowed_known_file = config["allowed_known_file"]
+      else: 
+        self._allowed_known_file = None
+
+    try:
+      self._allowed_known_list = open(self._allowed_known_file, 'r').read().splitlines()
+    except:
+      logger.warning("Cannot load allowed known sources file %s! "
+                    "Will use an empty list instead!", 
+                    self._allowed_known_file)
+      self._allowed_known_list = []
+    else:
+      logger.info("Loaded the allowed sources list with %d sources ",
+                    len(self._allowed_known_list))
 
     self._matcher = Matcher(self._thresh_dist, self._thresh_dm)
 
