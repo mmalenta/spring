@@ -31,6 +31,8 @@ class Configuration():
 
     if "config" in self._raw_config:
 
+      print(self._raw_config)
+
       self._parse_config_file()
       del self._raw_config["config"]
 
@@ -97,13 +99,13 @@ class Configuration():
         for module, module_config in value["transform"].items():
 
           if module in self._parsed_config["modules"]["transform"]:
-            if module_config:
+            if module_config["enabled"]:
               logger.warning("Overwriting module \033[;1m%s\033[0m "
                             "with provided configuration!", module)
 
               # Currently use individual key/value pairs to overwrite
               # the pairs provided in the JSON config file
-              for config_key, config_value in module_config.items():
+              for config_key, config_value in module_config["parameters"].items():
                 self._parsed_config["modules"]["transform"][module][config_key] = config_value
             else:
               logger.warning("Removing module %s from the processing", module)

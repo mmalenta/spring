@@ -1,7 +1,3 @@
-import matplotlib
-from numpy.core.fromnumeric import var
-matplotlib.use('Agg')
-
 import argparse as ap
 import asyncio
 import logging
@@ -9,23 +5,40 @@ import signal
 
 from functools import partial
 from os import path
-from typing import Dict
 
-from json import load
 
 from sppipeline.pipeline import Pipeline
+
 from sppipeline.configuration import Configuration
 
 logger = logging.getLogger()
 
 class ModulesAction(ap.Action):
+
+  """
+
+  Class for custom handling of the modules argparse command line
+  option.
+
+  Parses the string passed to the module option to enable and disable
+  provided modules. The format of the option is
+  -m module1[=disable],[key=value]... module2[=disable],[key=value]...
+  The =disable is optional and only required if a module is to be disabled,
+  when e.g. overriding  a default JSON configuration. Not providing an
+  option to the module is equal to enabling the module with the default
+  configuration. Comma separated key=value pairs can be used to provide
+  non-default configuration parameters.
+
+  """
+
   def __init__(self, option_strings, dest, nargs=None, **kwargs):
     super(ModulesAction, self).__init__(option_strings, dest, nargs, **kwargs)
 
-  def __call__(self, parser, namespace, values, option_string=None):
+    self._modules = {"transform": {}}
 
-    modules = { "transform": {}}
+  def __call__(self, parser, namespace, values, option_string=None) -> None:
 
+    # For each module provided as a space separated value
     for module in values:
 
       # Don't include empty strings in case something like "frbid,"
@@ -33,29 +46,18 @@ class ModulesAction(ap.Action):
       module_config = [s for s in module.split(',') if s]
 
       if len(module_config) == 1:
+
         module_toggle = module_config[0].split('=')
         module_name = module_toggle[0]
-        if (len(module_toggle) == 2
-            and (module_toggle[1] == "disable")):
-          print(f"Disabling module {module_name}")
-          modules["transform"][module_name] = False
-        elif (len(module_toggle) == 1):
-          print(f"Enabling module {module_name} with empty configuration")
-          modules["transform"][module_name] = {}
-        else:
-          print("Unrecognised options, "
-                  f"will not enable module {module_name}")
+        self._toggle_module(module_toggle)
+
       else:
+
         module_toggle = module_config[0].split('=')
         module_name = module_toggle[0]
-        if (len(module_toggle) == 2
-            and (module_toggle[1] == "disable")):
-          print(f"Disabling module {module_name}, "
-                  "will ignore provided configuration")
-          modules["transform"][module_name] = False
-        elif (len(module_toggle) == 1):
-          print(f"Enabling module {module_name} "
-                  "with provided configuration")
+        self._toggle_module(module_toggle)
+
+        if self._modules["transform"][module_name]["enabled"]:
 
           module_params = module_config[1:]
           params_dict = {}
@@ -65,16 +67,57 @@ class ModulesAction(ap.Action):
             key, value, *extras = param.split("=")
             if extras:
               print(f"Will ignore extra values for parameter {key}")
-            
+
             params_dict[key] = value
 
-          modules["transform"][module_name] = params_dict
+          self._modules["transform"][module_name]["parameters"] = params_dict
 
-    setattr(namespace, self.dest, modules)
+    setattr(namespace, self.dest, self._modules)
+
+  def _toggle_module(self, module_toggle) -> None:
+
+    """
+
+    Enable or disable the module.
+
+    If =disable is provided for the module it is disabled. If not,
+    then enable the module.
+
+    Parameters:
+
+      module_toggle: List[str]
+        List containing the module name and optional configuration
+        parameters.
+
+    Returns:
+
+      None
+
+    """
+
+    module_name = module_toggle[0]
+    if (len(module_toggle) == 2
+        and (module_toggle[1] == "disable")):
+      print(f"Disabling module {module_name}")
+      self._modules["transform"][module_name] = {"enabled": False}
+    elif (len(module_toggle) == 1) or (module_toggle[1] == "enable"):
+      print(f"Enabling module {module_name} with empty configuration")
+      empty_params = {"enabled": True, "parameters": {}}
+      self._modules["transform"][module_name] = empty_params
+    else:
+      print("Unrecognised options, "
+              f"will not enable module {module_name}")
 
 class ColouredFormatter(logging.Formatter):
 
-  custom_format = "[%(asctime)s] [%(process)d %(processName)s] [\033[1;{0}m%(levelname)s\033[0m] [%(module)s] %(message)s"
+  """
+
+  Provides a custom logger formatter.
+
+  """
+
+  custom_format = "[%(asctime)s] [%(process)d %(processName)s] " \
+                  "[\033[1;{0}m%(levelname)s\033[0m] [%(module)s] %(message)s"
 
   def format(self, record):
 
@@ -87,14 +130,36 @@ class ColouredFormatter(logging.Formatter):
     }
 
     colour_number = colours.get(record.levelno)
-    return logging.Formatter(self.custom_format.format(colour_number), datefmt="%a %Y-%m-%d %H:%M:%S").format(record)
+    return logging.Formatter(self.custom_format.format(colour_number),
+                              datefmt="%a %Y-%m-%d %H:%M:%S").format(record)
 
 class CandidateFilter():
 
-  def __init__(self, level = 15):
+  """
+
+  Provide a custom logger filter for candidate messages.
+
+  """
+
+  def __init__(self, level=15):
     self._level = level
-  
-  def filter(self, record):
+
+
+  def filter(self, record) -> bool:
+    """
+
+    Checks whether the level of the current record is the same as the
+    level of the candidate filter.
+
+    Parameters:
+
+      None
+
+    Returns:
+
+      : bool
+
+    """
     return record.levelno == self._level
 
 def main():
@@ -121,7 +186,7 @@ def main():
                       type=str)
 
   parser.add_argument("-l", "--log_level",
-                      help="Log level", 
+                      help="Log level",
                       required=False,
                       type=str,
                       choices=["debug", "info", "warn"])
@@ -172,7 +237,7 @@ def main():
   cl_handler.setLevel(getattr(logging, configuration["log_level"].upper()))
   cl_handler.setFormatter(ColouredFormatter())
   logger.addHandler(cl_handler)
-  
+
   fl_handler = logging.FileHandler(path.join(configuration["base_directory"], "candidates.dat"))
   formatter = logging.Formatter("%(asctime)s: %(message)s",
                                 datefmt="%a %Y-%m-%d %H:%M:%S")
@@ -180,11 +245,12 @@ def main():
   fl_handler.addFilter(CandidateFilter())
   logger.addHandler(fl_handler)
 
+
   pipeline = Pipeline(configuration)
   loop = asyncio.get_event_loop()
   # Handle CTRL + C
   loop.add_signal_handler(getattr(signal, 'SIGINT'),
-                          partial(pipeline.stop, loop))    
+                          partial(pipeline.stop, loop))
   loop.create_task(pipeline.run(loop))
 
   try:
