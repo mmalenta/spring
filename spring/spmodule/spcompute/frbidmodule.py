@@ -201,6 +201,7 @@ class FrbidModule(ComputeModule):
         "dm": self._data.metadata["cand_metadata"]["dm"],
         "mjd": self._data.metadata["cand_metadata"]["mjd"],
         "snr": self._data.metadata["cand_metadata"]["snr"],
+        "width": self._data.metadata["cand_metadata"]["width"],
         "beam_abs": self._data.metadata["beam_metadata"]["beam_abs"],
         "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
         "ra": self._data.metadata["beam_metadata"]["beam_ra"],
