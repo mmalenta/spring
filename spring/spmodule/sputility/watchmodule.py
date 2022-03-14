@@ -172,9 +172,15 @@ class WatchModule(UtilityModule):
             all_files = scandir(full_dir)
 
             for ifile in all_files:
-              if ifile.name.endswith("fil") and ifile.name not in processed_files:
-                fil_files.append([ifile.name, ifile.stat().st_mtime,
-                                  ifile.stat().st_size])
+              # This can fail if file was removed before reading the stats
+              try:
+                if ifile.name.endswith("fil") and ifile.name not in processed_files:
+                  fil_files.append([ifile.name, ifile.stat().st_mtime,
+                                    ifile.stat().st_size])
+              except FileNotFoundError:
+                logger.error("Filterbank %s not found! Has it been removed?",
+                               ifile.name)
+                continue 
 
             logger.info("Found %d new filterbank files in %s",
                         len(fil_files), full_dir)
@@ -183,7 +189,6 @@ class WatchModule(UtilityModule):
             if len(fil_files) > 0:
 
               try:
-
                 cands = retry_call(self._read_spccl, fargs=[full_dir],
                                     exceptions=(FileNotFoundError, 
                                                 EmptyDataError,
@@ -217,76 +222,92 @@ class WatchModule(UtilityModule):
                 # Check if the header is still being written to
 
                 file_path = path.join(full_dir, ifile[0])
-                with open(file_path, 'rb') as ff:
 
-                  # Check whether we are still writing to a file
-                  # This is less than ideal, as there is no guarantee
-                  # that the file size will increase between getting the
-                  # .fil file list and now, but it's all we have now
-                  try:
+                # File can be removed before we get here
+                try:
+                  ff = open(file_path, "rb")
+                except FileNotFoundError:
+                  logger.error("Filterbank %s not found! Has it been removed?",
+                                file_path)
+                  continue              
+                else:
 
-                    retry_call(self._check_fil_write,
-                                fargs=[ff, ifile, file_path],
-                                exceptions=(RuntimeError),
-                                tries=int(self._fil_wait_sec / 0.5),
-                                delay=0.5)
+                  with ff:
+                    # Check whether we are still writing to a file
+                    # This is less than ideal, as there is no guarantee
+                    # that the file size will increase between getting the
+                    # .fil file list and now, but it's all we have now
+                    try:
+                      # File can be removed during any of the retry calls here
+                      retry_call(self._check_fil_write,
+                                  fargs=[ff, ifile, file_path],
+                                  exceptions=(RuntimeError),
+                                  tries=int(self._fil_wait_sec / 0.5),
+                                  delay=0.5)
+                    
+                    except RuntimeError:
+                      logger.error("File %s not complete after %.2f seconds",
+                                    file_path, self._fil_wait_sec)
+                      continue
 
-                  except RuntimeError:
+                    except FileNotFoundError:
+                      logger.error("Filterbank %s not found! Has it been removed?",
+                                    file_path)
+                      continue           
 
-                    logger.error("File %s not complete after %.2f seconds",
-                                  file_path, self._fil_wait_sec)
-                    continue
+                    # No checks required here - as long as the file is
+                    # open, it won't really be deleted until we have an
+                    # open handle to it
+                    ff.seek(0, 0)
+                    header = self._read_header(ff)
+                    header["fil_file"] = ifile[0]
+                    header["full_dir"] = full_dir
+                    header["header_size"] = self._fil_header_size
 
-                  ff.seek(0, 0)
-                  header = self._read_header(ff)
-                  header["fil_file"] = ifile[0]
-                  header["full_dir"] = full_dir
-                  header["header_size"] = self._fil_header_size
+                    file_samples = int((ifile[2] - self._fil_header_size)
+                                      / header["nchans"])
+                    file_length_s = (file_samples * float(header["tsamp"]))
+                    file_length_mjd = file_length_s * self._mjd_const
+                    file_start = header["mjd"]
+                    file_end = file_start + file_length_mjd
+                    logger.debug("File %s spanning MJDs between %.6f and %.6f",
+                                file_path, file_start, file_end)
 
-                  file_samples = int((ifile[2] - self._fil_header_size)
-                                     / header["nchans"])
-                  file_length_s = (file_samples * float(header["tsamp"]))
-                  file_length_mjd = file_length_s * self._mjd_const
-                  file_start = header["mjd"]
-                  file_end = file_start + file_length_mjd
-                  logger.debug("File %s spanning MJDs between %.6f and %.6f",
-                               file_path, file_start, file_end)
+                    matched_cands = cands[(cands["MJD"] >= file_start) &
+                                          (cands["MJD"] < file_end)]
 
-                  matched_cands = cands[(cands["MJD"] >= file_start) &
-                                        (cands["MJD"] < file_end)]
+                    # Bail out early for this file
+                    if len(matched_cands) == 0:
+                      logger.warning("No candidates found for file %s", file_path)
+                      continue
 
-                  # Bail out early for this file
-                  if len(matched_cands) == 0:
-                    logger.warning("No candidates found for file %s", file_path)
-                    continue
-
-                  cand_dict = {
-                      "data": None,
-                      "fil_metadata": header,
-                      "cand_metadata": {},
-                      "beam_metadata": ibeam,
-                      "obs_metadata": data["obs_logs"],
-                      "time": perf_counter()
-                  }
-
-                  for _, cand in matched_cands.iterrows():
-
-                    cand_metadata = {
-                        "mjd": cand["MJD"],
-                        "dm": cand["DM"],
-                        "width": cand["Width"],
-                        "snr": cand["SNR"],
-                        "known": ""
+                    cand_dict = {
+                        "data": None,
+                        "fil_metadata": header,
+                        "cand_metadata": {},
+                        "beam_metadata": ibeam,
+                        "obs_metadata": data["obs_logs"],
+                        "time": perf_counter()
                     }
 
-                    cand_dict["cand_metadata"] = cand_metadata
+                    for _, cand in matched_cands.iterrows():
 
-                    cand_queue.put_candidate((0, Cand(cand_dict)))
-                    logger.debug("Candidate queue size is now %d",
-                                 cand_queue.qsize())
+                      cand_metadata = {
+                          "mjd": cand["MJD"],
+                          "dm": cand["DM"],
+                          "width": cand["Width"],
+                          "snr": cand["SNR"],
+                          "known": ""
+                      }
 
-                  # Only append the file if it was properly processed
-                  processed_files.add(ifile[0])
+                      cand_dict["cand_metadata"] = cand_metadata
+
+                      cand_queue.put_candidate((0, Cand(cand_dict)))
+                      logger.debug("Candidate queue size is now %d",
+                                  cand_queue.qsize())
+
+                    # Only append the file if it was properly processed
+                    processed_files.add(ifile[0])
 
         logger.info("Recalculating directories...")
         dirs_data = self._get_current_dirs(dirs_data)
@@ -294,8 +315,6 @@ class WatchModule(UtilityModule):
         sleep(1)
         logger.debug("Candidate queue size is now %d",
                      cand_queue.qsize())
-
-        # End of try block
 
       except asyncio.CancelledError:
         logger.info("Watcher quitting")
@@ -462,12 +481,18 @@ class WatchModule(UtilityModule):
       None
 
     """
+    try:
 
-    if ( (file_buffer.seek(0, 2) < self._fil_header_size) or 
-        (stat(file_path).st_size > file_meta[2]) ):
+      # Here seek can work even with a deleted file, but stat() will not
+      if ( (file_buffer.seek(0, 2) < self._fil_header_size) or 
+          (stat(file_path).st_size > file_meta[2]) ):
 
-      file_meta[2] = stat(file_path).st_size
-      raise RuntimeError("File %s is smaller than the header size" % file_path)
+        file_meta[2] = stat(file_path).st_size
+        raise RuntimeError("File %s is smaller than the header size" % file_path)
+
+    except FileNotFoundError:
+
+      raise FileNotFoundError
 
   def _read_logs(self, directory: str, 
                  log_file: str = "run_summary.json") -> Tuple[Dict, List]:
