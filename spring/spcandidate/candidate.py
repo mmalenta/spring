@@ -46,6 +46,7 @@ class Candidate:
         "fil_metadata": cand["fil_metadata"],
         "cand_metadata": cand["cand_metadata"],
         "beam_metadata": cand["beam_metadata"],
+        "obs_metadata": cand["obs_metadata"],
     }
     self.time_added = cand["time"]
     
