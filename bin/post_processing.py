@@ -6,7 +6,7 @@ import signal
 from functools import partial
 from os import path
 
-
+from spmodule.moduleregistry import ModuleRegistry
 from sppipeline.pipeline import Pipeline
 
 from sppipeline.configuration import Configuration
@@ -224,6 +224,10 @@ def main():
                       action="store_true")
 
   arguments = parser.parse_args()
+
+  module_registry = ModuleRegistry()
+  module_registry.discover_modules()
+  module_registry.print_modules()
 
   config_parser = Configuration(vars(arguments))
   config_parser.parse_configuration()
