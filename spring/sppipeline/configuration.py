@@ -1,4 +1,3 @@
-import argparse as ap
 import logging
 
 from json import load
@@ -13,27 +12,27 @@ class Configuration():
     self._raw_config = config
     self._parsed_config = {}
 
-  def parse_configuration(self):
+  def parse_configuration(self, module_registry):
 
     """
-    
+
     Parses and verifies the provided configuration.
 
     Parameters:
 
-      None
+      module_registry: ModuleRegistry
+        Registry with modules currently available to the pipeline. Used
+        to check whether requested modules are available.
 
     Returns:
 
       None
-    
+
     """
 
     if "config" in self._raw_config:
 
-      print(self._raw_config)
-
-      self._parse_config_file()
+      self._parse_config_file(module_registry)
       del self._raw_config["config"]
 
     if len(self._raw_config) >= 1:
@@ -44,14 +43,14 @@ class Configuration():
 
     self._verify_config()
 
-  def _parse_config_file(self):
-    
+  def _parse_config_file(self, module_registry):
+
     """
 
     Parses the configuration JSON file.
 
     The configuration JSON file exists to simplify the passing of the
-    initial arguments to the pipeline. Configuration file is parsed 
+    initial arguments to the pipeline. Configuration file is parsed
     first and later overwritten by the command line arguments if
     necessary.
 
@@ -73,14 +72,43 @@ class Configuration():
     with open(config_file, "r") as cf:
 
       config_json = load(cf)
-
       for key, value in config_json.items():
+        # Parse modules
+        if key == "modules":
+
+          # Currently we have a set module division, but this can
+          # change in the future, so we the checks have to be
+          # independent of the module dictionary structure
+
+          def __contains_dict(value):
+            if isinstance(value, dict):
+              for subvalue in value.values():
+                if isinstance(subvalue, dict):
+                  return True
+            return False
+
+          def __check_modules(module_dict, modules):
+            for key, value in module_dict.copy().items():
+              # Needto check if key is the lowest level module
+              # As a convention, they are just a collection of key: value
+              # pairs, where value is either a number or a string
+              if key in modules:
+                # There is likely a lower level module there
+                if __contains_dict(value):
+                  __check_modules(value, modules[key])
+              else:
+                # Need to remove them in clever way
+                logger.warning("Module %s not available! Will not use it!", key)
+                del module_dict[key]
+
+          __check_modules(value, module_registry.available_modules())
+
         self._parsed_config[key] = value
 
   def _parse_cl_config(self):
 
     """
-    
+
     Parses the command line configuration.
 
     Overwrites JSON configuration, if it exists. If a transform module
@@ -89,7 +117,7 @@ class Configuration():
     will result in a default configuration being used. IF the module
     does not exist in the JSON configuration, it will simply be
     initialised with the default configuration
-    
+
     """
 
     for key, value in self._raw_config.items():
@@ -101,7 +129,7 @@ class Configuration():
           if module in self._parsed_config["modules"]["transform"]:
             if module_config["enabled"]:
               logger.warning("Overwriting module \033[;1m%s\033[0m "
-                            "with provided configuration!", module)
+                              "with provided configuration!", module)
 
               # Currently use individual key/value pairs to overwrite
               # the pairs provided in the JSON config file
@@ -117,16 +145,16 @@ class Configuration():
   def _verify_config(self):
 
     """
-    
+
     Verifies the provided configuration.
-    
+
     """
 
     valid_configuration = True
 
     # Validate that the correct data directory was supplied
     try:
-      watch_dir = self._parsed_config["modules"]["utility"]["input"]["watcher"]
+      watch_dir = self._parsed_config["modules"]["utility"]["input"]["watch"]
       if not path.isdir(watch_dir["base_directory"]):
         valid_configuration = False
         # We should really add an additional check for UTC directories
@@ -135,7 +163,7 @@ class Configuration():
 
     except KeyError:
       valid_configuration = False
-      logger.error("Invalid watcher configuration provided!")
+      logger.error("Invalid watch module configuration provided!")
 
     # We need at least one output module
     try:
@@ -201,8 +229,8 @@ class Configuration():
       logger.error("Model directory %s does not exist!", model_dir)
       raise RuntimeError
     else:
-      if ( (not path.exists(path.join(model_dir, model_name + ".json")) ) or 
-            (not path.exists(path.join(model_dir, model_name + ".h5")) )):
+      if ((not path.exists(path.join(model_dir, model_name + ".json"))) or
+            (not path.exists(path.join(model_dir, model_name + ".h5")))):
         logger.error("Model %s not exist!",
                       path.join(model_dir, model_name))
         raise RuntimeError
@@ -210,9 +238,9 @@ class Configuration():
   def get_configuration(self) -> Dict:
 
     """
-    
+
     Returns the parsed configuration
-    
+
     Parameters:
 
       None
@@ -228,7 +256,7 @@ class Configuration():
   def print_configuration(self):
 
     """
-    
+
     Print the configuration.
 
     Currently just prints the dictionary as it is. Will make it look
@@ -241,13 +269,13 @@ class Configuration():
     Returns:
 
       None
-    
+
     """
 
     def __print_config_param(indent, config):
 
       for key, value in config.items():
-        if type(value) is dict:
+        if isinstance(value, dict):
           print(f"{indent} {key}:")
           __print_config_param(indent + "--", value)
         else:

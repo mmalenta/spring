@@ -230,7 +230,7 @@ def main():
   module_registry.print_modules()
 
   config_parser = Configuration(vars(arguments))
-  config_parser.parse_configuration()
+  config_parser.parse_configuration(module_registry)
   config_parser.print_configuration()
   configuration = config_parser.get_configuration()
 

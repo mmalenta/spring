@@ -89,8 +89,8 @@ class Pipeline:
     intput_configs = config["modules"]["utility"]["input"]
     output_configs = config["modules"]["utility"]["output"]
 
-    self._watch_module = WatchModule(intput_configs["watcher"]["base_directory"],
-                                      intput_configs["watcher"]["num_watchers"])
+    self._watch_module = WatchModule(intput_configs["watch"]["base_directory"],
+                                      intput_configs["watch"]["num_watchers"])
 
     self._plot_module = PlotModule(output_configs["plot"])
     # This currently does not have any options
