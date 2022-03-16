@@ -30,6 +30,9 @@ class IqrmModule(TransformModule):
 
   """
 
+  id = 10
+  abbr = "I"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()

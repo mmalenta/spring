@@ -46,7 +46,6 @@ class TransformModule(Module):
     super().__init__()
     self._data = None
     self.type = None
-    self.id = 0
 
   def initialise(self, indata: Cand) -> None:
 
