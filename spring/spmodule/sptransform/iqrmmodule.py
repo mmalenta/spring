@@ -4,7 +4,8 @@ from time import perf_counter
 from typing import Dict
 
 from mtcutils.core import normalise
-from mtcutils import iqrm_mask as iqrm
+#from mtcutils import iqrm_mask as iqrm
+from iqrm import iqrm_mask
 from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
@@ -59,8 +60,9 @@ class IqrmModule(TransformModule):
     logger.debug("IQRM module starting processing")
     iqrm_start = perf_counter()
     scaled, norm_mean, norm_stdev = normalise(self._data.data)
-    # TODO: Make maxlag properly configurable
-    mask = iqrm(norm_stdev, maxlag=15)
+    # As advised, maxlag set to 10% of the number of frequency channels
+    mask, _ = iqrm_mask(norm_stdev, radius=self._data.metadata["fil_metadata"]["nchans"] * 0.1)
+    print(mask.shape)
     scaled[mask] = 0
     self._data.data = scaled
     self._data.mean = norm_mean
