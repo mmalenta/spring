@@ -157,7 +157,7 @@ class ModuleRegistry:
 
     self._modules = self.ModuleContainer("dir")
     # Base classes will be ignored
-    self._base_classes = ["module", "transformmodule",
+    self._base_classes = ["module", "transformmodule", "moduleregistry",
                           "utilitymodule", "inputmodule", "outputmodule"]
 
   def discover_modules(self):
@@ -213,9 +213,11 @@ class ModuleRegistry:
 
       if module.is_dir():
 
-        tmp_module = self.ModuleContainer("dir", module.name)
-        self._scan_module_dir(path.join(module_dir, module.name), tmp_module)
-        parent_module.add_child(tmp_module)
+        if module.name.startswith("sp"):
+          tmp_name = module.name[2:]
+          tmp_module = self.ModuleContainer("dir", tmp_name)
+          self._scan_module_dir(path.join(module_dir, module.name), tmp_module)
+          parent_module.add_child(tmp_module)
 
       else:
         if module.name.endswith(".py"):
