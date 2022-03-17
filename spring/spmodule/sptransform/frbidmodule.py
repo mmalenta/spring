@@ -56,6 +56,9 @@ class FrbidModule(TransformModule):
 
   """
 
+  id = 60
+  abbr = "F"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()

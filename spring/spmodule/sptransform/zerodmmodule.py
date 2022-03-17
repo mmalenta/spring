@@ -31,6 +31,9 @@ class ZerodmModule(TransformModule):
 
   """
 
+  id = 40
+  abbr = "Z"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()

@@ -89,10 +89,7 @@ class Pipeline:
     intput_configs = config["modules"]["utility"]["input"]
     output_configs = config["modules"]["utility"]["output"]
 
-    self._watch_module = WatchModule(intput_configs["watch"]["base_directory"],
-                                      intput_configs["watch"]["num_watchers"])
 
-    self._plot_module = PlotModule(output_configs["plot"])
     # This currently does not have any options
     self._archive_module = ArchiveModule(output_configs["archive"])
 
@@ -112,7 +109,13 @@ class Pipeline:
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
 
-    #self._module_queue["frbid"].set_out_queue(self._final_queue)
+    self._watch_module = WatchModule(intput_configs["watch"]["base_directory"],
+                                      intput_configs["watch"]["num_watchers"])
+
+    output_configs["plot"]["modules"] = self._module_queue.started_modules()
+
+    self._plot_module = PlotModule(output_configs["plot"])
+
     self._module_queue["frbid"].set_out_queue(self._final_table)
     
   async def _listen(self, reader, writer) -> None:

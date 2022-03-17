@@ -51,6 +51,9 @@ class KnownModule(TransformModule):
 
   """
 
+  id = 0
+  abbr = "K"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()

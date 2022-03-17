@@ -28,6 +28,9 @@ class ZdotModule(TransformModule):
 
   """
 
+  id = 30
+  abbr = "Zd"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()

@@ -63,6 +63,9 @@ class CandmakerModule(TransformModule):
 
   """
 
+  id = 50
+  abbr = "C"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()
