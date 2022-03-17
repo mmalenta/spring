@@ -132,8 +132,10 @@ class ArchiveModule(OutputModule):
       plot_name = str(cand_metadata["mjd"]) + '_DM_' + fmtdm + '_beam_' + \
                   str(beam_metadata["beam_abs"]) + beam_metadata["beam_type"] + '.jpg'
 
+
       plot_group.attrs["plot_name"] = plot_name
       plot_group.attrs["representation"] = "uint8"      
+      cand_metadata["plot_name"] = plot_name
 
       # pylint: disable=unused-variable
       with open(path.join(fil_metadata["full_dir"], 'Plots', plot_name), 'rb') as plot_file:
