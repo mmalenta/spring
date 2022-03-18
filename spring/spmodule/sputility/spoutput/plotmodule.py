@@ -1,3 +1,4 @@
+from statistics import median
 import cupy as cp
 import logging
 import matplotlib.gridspec as gs
@@ -625,6 +626,7 @@ class PlotModule(OutputModule):
     ax_spectrum.set_yticklabels(avg_freq_label_str, fontsize=8)        
 
     ax_spectrum_orig = ax_spectrum.twiny()
+    ax_spectrum_orig.set_xlim(ax_spectrum.get_xlim())
     ax_spectrum_orig.set_xticks(avg_time_pos)
     ax_spectrum_orig.set_xticklabels(avg_time_label_str, fontsize=8)
 
@@ -634,6 +636,7 @@ class PlotModule(OutputModule):
     ax_band.set_xticks([npmin(sub_spectrum), mean(sub_spectrum), npmax(sub_spectrum)])
     ax_band.set_xticklabels(["{:.2f}".format(label) for label in [npmin(sub_spectrum), mean(sub_spectrum), npmax(sub_spectrum)]], fontsize=8)
     ax_band.yaxis.set_label_position("right")
+    ax_band.set_ylim(ax_spectrum.get_ylim())
     ax_band.yaxis.tick_right()
     ax_band.set_title('Bandpass', fontsize=8)
     ax_band.set_yticks(avg_freq_pos)
@@ -671,16 +674,34 @@ class PlotModule(OutputModule):
     dedisp_time_label_orig_str = [time_fmt(label) for label in dedisp_time_label_orig]
 
     ax_dedisp.imshow(dedisp_not_sum, interpolation='none', aspect='auto', cmap=cmap)
+
+    ax_dedisp.spines["bottom"].set_position(("axes", -0.15))
     ax_dedisp.set_xticks(dedisp_time_pos_orig)
     ax_dedisp.set_xticklabels(dedisp_time_label_orig_str, fontsize=8)
     ax_dedisp.set_xlabel('Time [' + time_unit + ']', fontsize=8)
+    ax_dedisp.xaxis.set_label_coords(0.5, -0.025)
+    ax_dedisp.tick_params(axis="x", direction="in", pad=-12)
     ax_dedisp.set_yticks(avg_freq_pos)
     ax_dedisp.set_ylabel('Freq [MHz]', fontsize=8)
     ax_dedisp.set_yticklabels(avg_freq_label_str, fontsize=8)
 
     ax_dedisp_orig = ax_dedisp.twiny()
+    ax_dedisp_orig.set_xlim(ax_dedisp.get_xlim())
     ax_dedisp_orig.set_xticks(dedisp_time_pos)
     ax_dedisp_orig.set_xticklabels(dedisp_time_label_str, fontsize=8)
+
+    ax_dedisp_off = ax_dedisp.twiny()
+    ax_dedisp_off.set_xlim(ax_dedisp.get_xlim())
+    ax_dedisp_off.spines["top"].set_position(("axes", -0.15))
+    ax_dedisp_off.set_xticks(dedisp_time_pos_orig)
+
+    dedisp_off_label = (dedisp_time_label_orig - median(dedisp_time_label_orig)) / disp_const
+    dedisp_off_label_str = [time_fmt(label) for label in dedisp_off_label]
+
+    ax_dedisp_off.set_xticklabels(dedisp_off_label_str, fontsize=8)
+    ax_dedisp_off.set_xlabel(r"$\Delta$ DM", fontsize=8)
+    ax_dedisp_off.xaxis.set_label_coords(0.5, -0.275)
+    ax_dedisp_off.tick_params(axis="x", direction="in", pad=-15)
 
     dedisp_norm_pos = [0.0, 0.5, 1.0]
     dedisp_norm_label_sr = [sf2_fmt(label) for label in dedisp_norm_pos]
@@ -704,6 +725,11 @@ class PlotModule(OutputModule):
     ax_time.set_yticklabels(dedisp_norm_label_sr, fontsize=8)
     ax_time.set_ylabel('Norm power', fontsize=8)
 
+    median_pos = median(dedisp_time_pos_orig)
+
+    ax_time.axvline(median_pos, color="gray", linewidth=0.5)
+    ax_time.axvline(median_pos - int(cand_metadata["width"] / 2.0 / 1000.0 / tsamp), color="gray", linewidth=0.5, linestyle="--")
+    ax_time.axvline(median_pos + int(cand_metadata["width"] / 2.0 / 1000.0 / tsamp), color="gray", linewidth=0.5, linestyle="--")
 
     """
     Keep the pulse limits out for now - things do not align properly
@@ -720,8 +746,8 @@ class PlotModule(OutputModule):
     ax_time_orig.set_xticklabels(dedisp_time_label_str, fontsize=8)
     
 
-    plt.text(0.05, 0.05, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
-    plt.text(0.20, 0.05, " ".join(self._modules), weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
+    plt.text(0.75, 0.01, self._version, fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
+    plt.text(0.95, 0.01, " ".join(self._modules), horizontalalignment="right", weight="bold", fontsize=8, in_layout=False, transform=plt.gcf().transFigure)
 
     prep_end = perf_counter()
     logger.debug("Preparing the plot took %.4fs", prep_end - prep_start)
