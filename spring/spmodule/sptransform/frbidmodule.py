@@ -12,11 +12,11 @@ from keras.models import model_from_json
 from tensorflow import ConfigProto, Session
 
 from FRBID_code.prediction_phase import load_candidate, FRB_prediction
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class FrbidModule(ComputeModule):
+class FrbidModule(TransformModule):
 
   """
 
@@ -56,6 +56,9 @@ class FrbidModule(ComputeModule):
 
   """
 
+  id = 60
+  abbr = "F"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()
@@ -80,6 +83,8 @@ class FrbidModule(ComputeModule):
     
     self._model.load_weights(path.join(config["model_dir"],
                                         config["model"] + ".h5"))
+
+    self._threshold = config["threshold"]
 
     self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     self._channel = self._connection.channel()
@@ -127,7 +132,7 @@ class FrbidModule(ComputeModule):
 
     self._out_queue = out_queue
 
-  async def process(self, metadata: Dict) -> None:
+  async def process(self) -> None:
 
     """
 
@@ -144,11 +149,7 @@ class FrbidModule(ComputeModule):
 
 		Parameters:
 
-			metadata: Dict
-				Metadata information for the FRBID processing. Currently
-				includes hardcoded values for the model name (NET3)
-				and probability threshold for assigning the candidate
-				label of 1 (0.5)
+			None
 
 		Returns:
 
@@ -162,7 +163,7 @@ class FrbidModule(ComputeModule):
 
     pred_data = load_candidate(self._data.ml_cand)
     prob, label = FRB_prediction(model=self._model, X_test=pred_data,
-                                  probability=metadata["threshold"])
+                                  probability=self._threshold)
 
     pred_end = perf_counter()
 
@@ -262,7 +263,7 @@ class FrbidModule(ComputeModule):
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 
 
-class MultibeamModule(ComputeModule):
+class MultibeamModule(TransformModule):
 
   """
 

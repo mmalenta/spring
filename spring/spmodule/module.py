@@ -14,7 +14,7 @@ class Module:
 
   """
   def __init__(self):
-    dummy = 1
+    pass
 
   async def process(self, metadata: Dict) -> None:
 

@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 # Seconds in a day
 DAY_SEC = 86400.0
 
-class ComputeModule(Module):
+class TransformModule(Module):
 
   """
 
-  Parent class for all the compute modules.
+  Parent class for all the transform modules.
 
   This class should not be used explicitly in the code.
 
@@ -33,7 +33,7 @@ class ComputeModule(Module):
   Attributes:
 
     _type: str
-      Type of the compute module: "V" for vetting - does some
+      Type of the transform module: "V" for vetting - does some
       classification and does not change the underlying data;
       "C" for cleaning - responsible for cleaning the data,
       expected to work on the entire file, so not candidate-dependent;
@@ -46,7 +46,6 @@ class ComputeModule(Module):
     super().__init__()
     self._data = None
     self.type = None
-    self.id = 0
 
   def initialise(self, indata: Cand) -> None:
 
@@ -164,7 +163,7 @@ class ComputeModule(Module):
 
 
 
-class MaskModule(ComputeModule):
+class MaskModule(TransformModule):
 
   """
 
@@ -225,7 +224,7 @@ class MaskModule(ComputeModule):
     self._data.data = self._data.data * mask[:, newaxis] 
     logger.debug("Mask module finished processing")
 
-class ThresholdModule(ComputeModule):
+class ThresholdModule(TransformModule):
 
   def __init__(self):
 

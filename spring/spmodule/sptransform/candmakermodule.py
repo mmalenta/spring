@@ -9,14 +9,14 @@ from math import ceil
 from numpy import append, array, clip, linspace, logical_not, mean, median
 from numpy import newaxis, random, std
 
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
 # Seconds in a day
 DAY_SEC = 86400.0
 
-class CandmakerModule(ComputeModule):
+class CandmakerModule(TransformModule):
 
   """
 
@@ -62,6 +62,9 @@ class CandmakerModule(ComputeModule):
       included in the DM-time plot.
 
   """
+
+  id = 50
+  abbr = "C"
 
   def __init__(self, config: Dict = None):
 
@@ -110,7 +113,7 @@ class CandmakerModule(ComputeModule):
       data = clip(data, -1.0 * clip_range, clip_range) 
     return data
 
-  async def process(self, metadata : Dict) -> None:
+  async def process(self) -> None:
 
     """
 
@@ -125,11 +128,7 @@ class CandmakerModule(ComputeModule):
 
     Parameters:
 
-      metadata: Dict
-        Dictionary with all the necessary candidate information. 
-        Contains the the array with the filterbank data, filterbank
-        metadata with all the filterbank header information and candidate
-        metadata with all the candidate detection information.
+      None
 
     Returns:
 

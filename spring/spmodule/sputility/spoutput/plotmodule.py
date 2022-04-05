@@ -12,11 +12,11 @@ from time import perf_counter
 from typing import Dict
 
 from spcandidate.candidate import Candidate as Cand
-from spmodule.sputility.utilitymodule import UtilityModule
+from spmodule.sputility.spoutput.outputmodule import OutputModule
 
 logger = logging.getLogger(__name__)
 
-class PlotModule(UtilityModule):
+class PlotModule(OutputModule):
 
   """
 
@@ -59,15 +59,17 @@ class PlotModule(UtilityModule):
   def __init__(self, config: Dict):
     super().__init__()
 
-    self._plots = config["plots"]
+    #self._plots = config["plots"]
     self._out_bands = config["out_chans"]
     self._modules = config["modules"]
 
+    """
     # Normalise, just in case values do not add up to 1.0
     for row in self._plots:
       norm = sum([y for (x, y) in row])
       for idx, (x, y) in enumerate(row):
         row[idx] = (x, y / norm)
+    """
 
     self._version = pkg_resources.require("spring")[0].version
 

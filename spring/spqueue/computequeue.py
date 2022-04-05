@@ -1,7 +1,8 @@
 import logging
-import spmodule.spcompute as cm
 
-from typing import List
+from typing import Dict, List
+
+import spmodule.sptransform as tm
 
 from spmodule.module import Module
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 class ComputeQueue:
 
   """
-  
+
   Queue for pipeline modules.
 
   Not a queue in the FIFO sense. A wrapper around a list,
@@ -25,11 +26,11 @@ class ComputeQueue:
   Attributes:
 
     _required: List[str]
-      Names of compute modules which have to be present to ensure 
+      Names of compute modules which have to be present to ensure
       that the pipeline works correctly. This provide a minimal working
       pipeline, with no extra pre-processing steps.
 
-    _queue: List[ComputeModule]
+    _queue: List[TransformModule]
       Compute modules queue responsible for processing the data.
 
     _idx: int
@@ -38,31 +39,36 @@ class ComputeQueue:
 
   """
 
-  def __init__(self, modules: List[str], fil_table):
+  def __init__(self, modules: Dict, fil_table):
 
     # Having FRBID in this list is a bit redundand
     # as it is a requirement to provide a valid configuration
     # for this module
     self._required = ["candmaker", "frbid"]
+    self._started_modules = []
     self._queue = []
     self._idx = 0
 
     self._data_state = None
     self._fil_table = fil_table
 
-    module_names = [module[0] for module in modules]
 
     for module in self._required:
-      if module not in module_names:
+      if module not in modules:
         logger.info("Adding a required %s module with an empty configuration",
                     module.capitalize())
-        modules.append((module, {}))
+        modules[module] = {}
 
-    for module in modules:
+    for module, config in modules.items():
       # Follow the naming convention described in the
-      # ComputeModule class docstring
-      self._queue.append(getattr(getattr(cm, module[0] + "module"), module[0].capitalize() + "Module")(module[1]))
-      
+      # TransformModule class docstring
+      tmp_module = getattr(getattr(tm, module + "module"), module.capitalize() + "Module")
+      self._started_modules.append((tmp_module.id, tmp_module.abbr))
+      self._queue.append(tmp_module(config))
+
+    self._started_modules.sort(key=lambda val: val[0])
+    self._started_modules = [val[1] for val in self._started_modules]
+
     self._queue.sort(key=lambda val: val.id)
 
     self._first_c_idx = self._find_module_type_idx("C")
@@ -71,11 +77,11 @@ class ComputeQueue:
     logger.info("First Cleaning module index: %d", self._first_c_idx)
     logger.info("First Processing module index: %d", self._first_p_idx)
 
-  def _find_module_type_idx(self, type: str) -> int:
+  def _find_module_type_idx(self, module_type: str) -> int:
 
-    for imodule in range(len(self._queue)):
-      if self._queue[imodule].type == type:
-        return imodule
+    for idx, module in enumerate(self._queue):
+      if module.type == module_type:
+        return idx
 
     return -1
 
@@ -164,7 +170,7 @@ class ComputeQueue:
             self._queue[run_idx].set_input(self._queue[self._idx].get_output())
           # If the data was not there and we get the origina filterbank
           # fiele, proceed as normal to cleaning
-          else: 
+          else:
             run_idx = self._idx
             # No need to read anything here - the metadata was passed
             # and the filterbank was read into the correct module above
@@ -191,7 +197,7 @@ class ComputeQueue:
   def __contains__(self, item: str) -> bool:
 
     for module in self._queue:
-      if isinstance(module, getattr(cm, item.capitalize() + "Module")):
+      if isinstance(module, getattr(tm, item.capitalize() + "Module")):
         return True
 
     return False
@@ -215,7 +221,7 @@ class ComputeQueue:
 
       : Module
         Requested module
-        
+
     Raises:
 
       IndexError: raised when the index exceeds the length of the
@@ -228,7 +234,7 @@ class ComputeQueue:
 
     if isinstance(idx, str):
       for module in self._queue:
-        if isinstance(module, getattr(getattr(cm, idx + "module"), idx.capitalize() + "Module")):
+        if isinstance(module, getattr(getattr(tm, idx + "module"), idx.capitalize() + "Module")):
           return module
 
     raise IndexError
@@ -243,7 +249,7 @@ class ComputeQueue:
 
     Returns:
 
-      : int 
+      : int
       Lenght of the module queue (list)
 
     """
@@ -253,7 +259,7 @@ class ComputeQueue:
   def add_module(self, module: Module) -> None:
 
     """
-    
+
     Dynamically add a module to the processing queue.
 
     Currently not properly implemented.
@@ -271,10 +277,29 @@ class ComputeQueue:
 
     self._queue.append(module)
 
+  def started_modules(self) -> List:
+
+    """
+
+    Return list of abbreviations of started modules.
+
+    Paramenters:
+
+      None
+
+    Returns:
+
+      self._started_modules: List
+        List of started modules abbreviations.
+
+    """
+
+    return self._started_modules
+
   def remove_module(self, module: Module) -> None:
 
     """
-    
+
     Dynamically remove a module to the processing queue.
 
     Currently not properly implemented.

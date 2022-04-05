@@ -1,5 +1,5 @@
-from spring import __version__ 
-from setuptools import setup
+from spring import __version__
+from setuptools import setup, find_packages
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -12,7 +12,7 @@ setup(
     description="Single pulse MeerTRAP post-processing pipeline",
     long_description=long_description,
     long_description_content_type="text/markdown",
+    packages=find_packages(where="spring"),
     package_dir={"": "spring"},
-    packages=["spcandidate", "spmodule", "spmodule.sputility", "spmodule.spcompute", "sppipeline", "spqueue"],
     scripts=["bin/post_processing.py"]
 )

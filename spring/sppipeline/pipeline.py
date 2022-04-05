@@ -13,9 +13,9 @@ import pika
 
 from numpy import array, float32, ones
 
-from spmodule.sputility.watchmodule import WatchModule
-from spmodule.sputility.plotmodule import PlotModule
-from spmodule.sputility.archivemodule import ArchiveModule
+from spmodule.sputility.spinput.watchmodule import WatchModule
+from spmodule.sputility.spoutput.plotmodule import PlotModule
+from spmodule.sputility.spoutput.archivemodule import ArchiveModule
 from sppipeline.filmanager import FilManager
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateManager
@@ -61,7 +61,7 @@ class Pipeline:
     _archive_module: UtilityModule
       Module responsible for creating the candidate HDF5 archives.
 
-    _module_queue: List[ComputeModule]
+    _module_queue: List[TransformModule]
       List of modules responsible for processing of candidates.
 
     _candidate_queue: CandQueue
@@ -86,11 +86,12 @@ class Pipeline:
     self._running = False
     self._paused = False
 
-    self._watch_module = WatchModule(config["base_directory"],
-                                        config["num_watchers"])
+    intput_configs = config["modules"]["utility"]["input"]
+    output_configs = config["modules"]["utility"]["output"]
 
-    self._plot_module = PlotModule(config["plots"])
-    self._archive_module = ArchiveModule(config)
+
+    # This currently does not have any options
+    self._archive_module = ArchiveModule(output_configs["archive"])
 
     self._fil_manager = FilManager()
     self._fil_manager.start()
@@ -103,12 +104,18 @@ class Pipeline:
     self._candidate_manager.start()
     self._candidate_queue = self._candidate_manager.CandidateQueue()
 
-    self._module_queue = ComputeQueue(config["modules"], self._fil_table)
+    self._module_queue = ComputeQueue(config["modules"]["transform"], self._fil_table)
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
 
-    #self._module_queue["frbid"].set_out_queue(self._final_queue)
+    self._watch_module = WatchModule(intput_configs["watch"]["base_directory"],
+                                      intput_configs["watch"]["num_watchers"])
+
+    output_configs["plot"]["modules"] = self._module_queue.started_modules()
+
+    self._plot_module = PlotModule(output_configs["plot"])
+
     self._module_queue["frbid"].set_out_queue(self._final_table)
     
   async def _listen(self, reader, writer) -> None:
@@ -171,39 +178,11 @@ class Pipeline:
 
       try:
 
-        # This will be gone at some point
-        metadata = {
-          "known": {
-
-          },
-          "iqrm": {
-
-          },
-          "threshold": {
-          },
-          "zerodm": {
-          },
-          "mask": {
-              "multiply": True,
-              "mask": array([0, 1, 1, 0])
-          },
-          "candmaker": {
-          },
-          "frbid": {
-            "model": "NET3",
-            "threshold": 0.5,
-          },
-          "multibeam": {
-          }
-        }
-
         cand_data = cand_queue.get_candidate()[1]
         self._module_queue[0].initialise(cand_data)
 
-        metadata["mask"]["mask"] = ones(cand_data.metadata["fil_metadata"]["nchans"]).astype(float32)
-
         for module in self._module_queue:
-          if await module.process(metadata[(module.__class__.__name__[:-6]).lower()]) is not None:
+          if await module.process() is not None:
             break
 
         logger.debug("Candidate finished processing %.4fs\
@@ -288,6 +267,7 @@ class Pipeline:
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     channel = connection.channel()
+    channel.basic_qos(prefetch_count=5)
     hostname = gethostname()
     channel.queue_declare("archiving_" + hostname, durable=True)
     channel.queue_bind("archiving_" + hostname, "post_processing")

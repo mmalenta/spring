@@ -12,12 +12,12 @@ from time import mktime, perf_counter, strptime, sleep
 from typing import Dict, List, Tuple
 
 from spcandidate.candidate import Candidate as Cand
-from spmodule.sputility.utilitymodule import UtilityModule
+from spmodule.sputility.spinput.inputmodule import InputModule
 from spqueue.candidatequeue import CandidateQueue as CandQueue
 
 logger = logging.getLogger(__name__)
 
-class WatchModule(UtilityModule):
+class WatchModule(InputModule):
 
   """
 

@@ -7,11 +7,11 @@ import h5py as h5
 from numpy import frombuffer, fromfile, uint8, zeros
 
 from spcandidate.candidate import Candidate as Cand
-from spmodule.sputility.utilitymodule import UtilityModule
+from spmodule.sputility.spoutput.outputmodule import OutputModule
 
 logger = logging.getLogger(__name__)
 
-class ArchiveModule(UtilityModule):
+class ArchiveModule(OutputModule):
 
   """ 
 

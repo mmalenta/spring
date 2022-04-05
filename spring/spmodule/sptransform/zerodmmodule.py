@@ -5,11 +5,11 @@ from typing import Dict
 
 from numpy import mean
 
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class ZerodmModule(ComputeModule):
+class ZerodmModule(TransformModule):
 
   """
   
@@ -31,6 +31,9 @@ class ZerodmModule(ComputeModule):
 
   """
 
+  id = 40
+  abbr = "Z"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()
@@ -39,7 +42,7 @@ class ZerodmModule(ComputeModule):
     logger.info("ZeroDM module initialised")
 
 
-  async def process(self, metadata : Dict) -> None:
+  async def process(self) -> None:
 
     """"
 
@@ -49,9 +52,7 @@ class ZerodmModule(ComputeModule):
 
     Parameters:
 
-      metadata: Dict
-        Dictionary with all the necessary candidate information. 
-        Contains the the array with the filterbank data.
+      None
 
     Returns:
 

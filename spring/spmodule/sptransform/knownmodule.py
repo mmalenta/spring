@@ -9,11 +9,11 @@ from astropy.units import hourangle as ap_ha, deg as ap_deg
 
 from psrmatch import Matcher
 
-from spmodule.spcompute.computemodule import ComputeModule
+from spmodule.sptransform.transformmodule import TransformModule
 
 logger = logging.getLogger(__name__)
 
-class KnownModule(ComputeModule):
+class KnownModule(TransformModule):
 
   """
 
@@ -51,6 +51,9 @@ class KnownModule(ComputeModule):
 
   """
 
+  id = 0
+  abbr = "K"
+
   def __init__(self, config: Dict = None):
 
     super().__init__()
@@ -65,21 +68,27 @@ class KnownModule(ComputeModule):
       self._allowed_known = True
       self._allowed_known_file = "/config/allowed_known_sources.dat"
             
-      try:
-        self._allowed_known_list = open(self._allowed_known_file, 'r').read().splitlines()
-      except:
-        logger.error("Cannot load allowed known sources file %s! "
-                      "Will use an empty list instead!", 
-                      self._allowed_known_file)
-        self._allowed_known_list = []
-      else:
-        logger.info("Loaded the allowed sources list with %d sources ",
-                      len(self._allowed_known_list))
     else:
       self._catalogue = config["catalogue"]
       self._thresh_dist = config["thresh_dist"]
       self._thresh_dm = config["thresh_dm"]
       self._known_pass_ratio = config["known_pass_ratio"]
+      self._allowed_known = config["allowed_known"]
+      if self._allowed_known == True:
+        self._allowed_known_file = config["allowed_known_file"]
+      else: 
+        self._allowed_known_file = None
+
+    try:
+      self._allowed_known_list = open(self._allowed_known_file, 'r').read().splitlines()
+    except:
+      logger.warning("Cannot load allowed known sources file %s! "
+                    "Will use an empty list instead!", 
+                    self._allowed_known_file)
+      self._allowed_known_list = []
+    else:
+      logger.info("Loaded the allowed sources list with %d sources ",
+                    len(self._allowed_known_list))
 
     self._matcher = Matcher(self._thresh_dist, self._thresh_dm)
 
@@ -94,7 +103,7 @@ class KnownModule(ComputeModule):
     self._matcher.create_search_tree()
     logger.info("Known source module initialised")
 
-  async def process(self, metadata: Dict):
+  async def process(self):
 
     """
     
@@ -104,6 +113,10 @@ class KnownModule(ComputeModule):
     in the processing chain. A small percentage of known candidates
     is passed for quality checks. Additional metadata is added when
     this happens
+
+    Parameters:
+
+      None
 
     Returns:
 

@@ -1,0 +1,53 @@
+{
+  "log_level": "info", 
+  "base_directory": "/test_data",
+  "modules":  {
+    
+    "transform": {
+      
+      "known": {
+        "catalogue": "psrcat",
+        "thresh_dm": 5.0,
+        "thresh_dist": 1.5,
+        "known_pass_ratio": 0.005,
+        "allowed_known": false,
+        "allowed_known_file": "/test_data/allowed_known_sources.dat"
+      },
+      
+      "frbid": {
+        "threshold": 0.5,
+        "model": "NET3",
+        "model_dir": "../FRBID/FRBID_model"
+      },
+  
+      "iqrm": {
+  
+      }
+    
+    },
+
+    "utility": {
+
+      "input": {
+        
+        "watch": {
+          "base_directory": "/test_data",
+          "num_watchers": 2
+        }
+      
+      },
+
+      "output": {
+
+        "plot": {
+          "out_chans": 64
+        },
+    
+        "archive": {
+          
+        }
+      
+      }
+    }
+  }
+}
