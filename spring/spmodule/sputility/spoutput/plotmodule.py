@@ -625,6 +625,7 @@ class PlotModule(OutputModule):
     ax_spectrum.set_yticklabels(avg_freq_label_str, fontsize=8)        
 
     ax_spectrum_orig = ax_spectrum.twiny()
+    ax_spectrum_orig.set_xlim(ax_spectrum.get_xlim())
     ax_spectrum_orig.set_xticks(avg_time_pos)
     ax_spectrum_orig.set_xticklabels(avg_time_label_str, fontsize=8)
 
@@ -634,6 +635,7 @@ class PlotModule(OutputModule):
     ax_band.set_xticks([npmin(sub_spectrum), mean(sub_spectrum), npmax(sub_spectrum)])
     ax_band.set_xticklabels(["{:.2f}".format(label) for label in [npmin(sub_spectrum), mean(sub_spectrum), npmax(sub_spectrum)]], fontsize=8)
     ax_band.yaxis.set_label_position("right")
+    ax_band.set_ylim(ax_spectrum.get_ylim())
     ax_band.yaxis.tick_right()
     ax_band.set_title('Bandpass', fontsize=8)
     ax_band.set_yticks(avg_freq_pos)
@@ -679,6 +681,7 @@ class PlotModule(OutputModule):
     ax_dedisp.set_yticklabels(avg_freq_label_str, fontsize=8)
 
     ax_dedisp_orig = ax_dedisp.twiny()
+    ax_dedisp_orig.set_xlim(ax_dedisp.get_xlim())
     ax_dedisp_orig.set_xticks(dedisp_time_pos)
     ax_dedisp_orig.set_xticklabels(dedisp_time_label_str, fontsize=8)
 
@@ -703,7 +706,6 @@ class PlotModule(OutputModule):
     ax_time.set_yticks(dedisp_norm_pos)
     ax_time.set_yticklabels(dedisp_norm_label_sr, fontsize=8)
     ax_time.set_ylabel('Norm power', fontsize=8)
-
 
     """
     Keep the pulse limits out for now - things do not align properly
