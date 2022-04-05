@@ -14,8 +14,9 @@ import pika
 from numpy import array, float32, ones
 
 from spmodule.sputility.spinput.watchmodule import WatchModule
-from spmodule.sputility.spoutput.plotmodule import PlotModule
 from spmodule.sputility.spoutput.archivemodule import ArchiveModule
+from spmodule.sputility.spoutput.plotmodule import PlotModule
+from spmodule.sputility.spoutput.tarmodule import TarModule
 from sppipeline.filmanager import FilManager
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateManager
@@ -116,6 +117,8 @@ class Pipeline:
 
     self._plot_module = PlotModule(output_configs["plot"])
 
+    self._tarball_module = TarModule(output_configs["tar"])
+
     self._module_queue["frbid"].set_out_queue(self._final_table)
     
   async def _listen(self, reader, writer) -> None:
@@ -193,7 +196,7 @@ class Pipeline:
         logger.info("Compute modules quitting")
         return
 
-  def _finalise(self, cand_table, fil_table, plot_module, archive_module) -> None:
+  def _finalise(self, cand_table, fil_table, plot_module, archive_module, tar_module) -> None:
 
     """
 
@@ -202,6 +205,8 @@ class Pipeline:
     This method waits for new candidates to be pused to the
     queue by the FRBID module after they were processed by all the
     modules in the _module_queue.
+
+    TODO: Really have to accept and run a variable number of modules
 
     Parameters:
 
@@ -264,6 +269,7 @@ class Pipeline:
         else:  
           plot_module.plot(cand_data)
           archive_module.archive(cand_data, save_fil_data)
+          tar_module.create_tarball(cand_data)
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     channel = connection.channel()
@@ -305,7 +311,10 @@ class Pipeline:
                         args=(self._final_table,
                           self._fil_table,
                           self._plot_module,
-                          self._archive_module))
+                          self._archive_module,
+                          self._tarball_module))
+
+                        
     finiliser.start()
     watcher.start()
 
