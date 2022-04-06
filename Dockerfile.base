@@ -1,0 +1,15 @@
+FROM nvidia/cuda:9.2-base-ubuntu18.04
+
+RUN apt -y update && \
+    apt -y install apt-utils && \
+    apt -y upgrade && \
+    apt -y install --no-install-recommends \
+    cuda-cublas-9-2 \
+    cuda-cufft-9-2 \
+    cuda-curand-9-2 \
+    cuda-cusparse-9-2 \
+    cuda-cusolver-9-2 \
+    cuda-nvrtc-9-2 \
+    cuda-npp-9-2 \
+    libgomp1 \
+    python3
