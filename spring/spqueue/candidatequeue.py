@@ -6,6 +6,7 @@ from multiprocessing.managers import BaseManager
 from time import time
 
 from astropy.time import Time
+from prometheus_client import Counter, Summary
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ class CandidateQueue(PriorityQueue):
       "rfi": 2
     }
 
+    self._cand_summary = Summary("candidate_queue_size", "Number of candidates in the canddiate queue")
+    self._rep_count = Counter("candidate_queue_repriorities", "Number of times the candidate queue was reprioritised")
+
   def put_candidate(self, candidate):
     with self._lock:
       self.put(candidate)
@@ -45,8 +49,10 @@ class CandidateQueue(PriorityQueue):
       if (diff >= self._time_limit) and (top_candidate[0] == self._priority["good"]):
         self.put(top_candidate)
         self.reprioritise_candidates()
+        self._cand_summary.observe(self.qsize())
         return self.get()
       else:
+        self._cand_summary.observe(self.qsize())
         return top_candidate
 
   def reprioritise_candidates(self):
@@ -63,6 +69,8 @@ class CandidateQueue(PriorityQueue):
           cand = (self._priority["fall"], cand[1])
 
         self.put(cand)
+
+    self._rep_count.inc()
 
 CandidateManager.register("CandidateQueue", CandidateQueue)
     

@@ -6,6 +6,8 @@ import signal
 from functools import partial
 from os import path
 
+from prometheus_client import CollectorRegistry, multiprocess, start_http_server
+
 from spmodule.moduleregistry import ModuleRegistry
 from sppipeline.pipeline import Pipeline
 
@@ -249,6 +251,9 @@ def main():
   fl_handler.addFilter(CandidateFilter())
   logger.addHandler(fl_handler)
 
+  registry = CollectorRegistry()
+  multiprocess.MultiProcessCollector(registry)
+  start_http_server(8000, registry=registry)
 
   pipeline = Pipeline(configuration)
   loop = asyncio.get_event_loop()

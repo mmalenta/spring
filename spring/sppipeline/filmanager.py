@@ -5,6 +5,7 @@ from multiprocessing.managers import BaseManager
 from os import path
 
 from numpy import copy, float32, floor, fromfile, reshape
+from prometheus_client import Gauge
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,9 @@ class FilDataTable:
 
     self._lock = Lock()
 
+    self._candidate_gauge = Gauge("data_table_candidates", "Candidates in the data table")
+    self._candidate_size_gauge = Gauge("data_table_size", "Candidate data table size in B")
+
     logger.info("Filterbank data table initialised")
 
   def add_candidate(self, filterbank):
@@ -162,10 +166,13 @@ class FilDataTable:
         
             # Take just the filterbank file into account - this is the main
             # contribution to the data table size
-            self._current_size += fil_data.size
+            self._current_size += fil_data.size * 4
+            self._candidate_size_gauge.inc(fil_data.size * 4)
             logger.info("Current data table size: %dB/%.2fMiB",
                           self._current_size,
                           self._current_size / 1024.0 / 1024.0)
+
+            self._candidate_gauge.inc()
 
             return (self._data[full_name]["data"], "orig")
 
@@ -242,7 +249,8 @@ class FilDataTable:
         if self._data[full_name]["ref_counter"] == 1:
           logger.info("Removing filterbank %s from the data table", 
                       full_name)
-          self._current_size -= self._data[full_name]["data"].size
+          self._current_size -= self._data[full_name]["data"].size * 4
+          self._candidate_size_gauge.dec(self._data[full_name]["data"].size * 4)
           # Copy the data before we actually remove it
           fil_data = {"header": self._data[full_name]["header"],
                       "data": self._data[full_name]["data"]}
@@ -253,6 +261,9 @@ class FilDataTable:
           logger.info("Current data table size: %dB/%.2fMiB",
                         self._current_size,
                         self._current_size / 1024.0 / 1024.0)
+
+          self._candidate_gauge.dec(1)
+
           return fil_data
 
         else:
