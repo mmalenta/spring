@@ -195,70 +195,27 @@ class FrbidModule(TransformModule):
     self._data.data = None
     self._out_queue[cand_hash] = self._data
 
-    # Send the data to clustering only if the candidate is labelled
-    # as probable and is not a known source
-    if label > 0.0 and not bool(cand_metadata["known"]):
-      message = {
-        "dm": self._data.metadata["cand_metadata"]["dm"],
-        "mjd": self._data.metadata["cand_metadata"]["mjd"],
-        "snr": self._data.metadata["cand_metadata"]["snr"],
-        "width": self._data.metadata["cand_metadata"]["width"],
-        "beam_abs": self._data.metadata["beam_metadata"]["beam_abs"],
-        "beam_type": self._data.metadata["beam_metadata"]["beam_type"],
-        "ra": self._data.metadata["beam_metadata"]["beam_ra"],
-        "dec":	self._data.metadata["beam_metadata"]["beam_dec"],
-        "bw_mhz": self._data.metadata["obs_metadata"]["bw_mhz"],
-        "cfreq_mhz": self._data.metadata["obs_metadata"]["cfreq_mhz"],
-        "nchan": self._data.metadata["obs_metadata"]["nchan"],
-        "tsamp_ms": self._data.metadata["obs_metadata"]["tsamp_ms"],
-        "cand_hash": cand_hash,
-        "time_sent": time(),
-        "hostname": gethostname()
-      }
+    # In offline mode, send the data to archiving immediately
+    if bool(cand_metadata["known"]) and label < 1.0:
+      logger.warning("Known source %s classified with label 0!",
+                      cand_metadata["known"])
 
-      logger.debug("Sending the data")
+    message = {
+      "cand_hash": cand_hash
+    }
 
-      try:
-        self._channel.basic_publish(exchange="post_processing",
-                                    routing_key="clustering",
-                                    body=dumps(message))
+    try:
+      self._channel.basic_publish(exchange="post_processing",
+                                  routing_key="archiving_" + gethostname(),
+                                  body=dumps(message))
 
-      # This is less than ideal, but anything more requires time we do
-      # not currently have
-      except:
-        logger.error("Resetting the lost RabbitMQ connection")
-        self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
-        self._channel = self._connection.channel()
-        self._channel.basic_publish(exchange="post_processing",
-                                    routing_key="clustering",
-                                    body=dumps(message))
-
-    # If the candidate is not labelled as probable or is a known source
-    # then send directly to archiving
-    else:
-
-      # We need to know quickly if a known source is classified 
-      # with label 0
-      if bool(cand_metadata["known"]) and label < 1.0:
-        logger.warning("Known source %s classified with label 0!",
-                        cand_metadata["known"])
-
-      message = {
-        "cand_hash": cand_hash
-      }
-
-      try:
-        self._channel.basic_publish(exchange="post_processing",
-                                    routing_key="archiving_" + gethostname(),
-                                    body=dumps(message))
-
-      except:
-        logger.error("Resetting the lost RabbitMQ connection")
-        self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
-        self._channel = self._connection.channel()
-        self._channel.basic_publish(exchange="post_processing",
-                                    routing_key="archiving_" + gethostname(),
-                                    body=dumps(message))
+    except:
+      logger.error("Resetting the lost RabbitMQ connection")
+      self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+      self._channel = self._connection.channel()
+      self._channel.basic_publish(exchange="post_processing",
+                                  routing_key="archiving_" + gethostname(),
+                                  body=dumps(message))
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)
 
