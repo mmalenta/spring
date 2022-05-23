@@ -39,7 +39,7 @@ class ComputeQueue:
 
   """
 
-  def __init__(self, modules: Dict, fil_table):
+  def __init__(self, modules: Dict, fil_table, monitoring_table):
 
     # Having FRBID in this list is a bit redundand
     # as it is a requirement to provide a valid configuration
@@ -64,6 +64,7 @@ class ComputeQueue:
       # TransformModule class docstring
       tmp_module = getattr(getattr(tm, module + "module"), module.capitalize() + "Module")
       self._started_modules.append((tmp_module.id, tmp_module.abbr))
+      config["monitoring"] = monitoring_table
       self._queue.append(tmp_module(config))
 
     self._started_modules.sort(key=lambda val: val[0])

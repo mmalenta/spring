@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from json import loads
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Queue
 from os import path
 from socket import gethostname
 from time import perf_counter, sleep
@@ -18,6 +18,7 @@ from spmodule.sputility.spoutput.archivemodule import ArchiveModule
 from spmodule.sputility.spoutput.plotmodule import PlotModule
 from spmodule.sputility.spoutput.tarmodule import TarModule
 from sppipeline.filmanager import FilManager
+from sppipeline.pipelinemonitor import PipelineMonitor
 from spqueue.computequeue import ComputeQueue
 from spqueue.candidatequeue import CandidateManager
 
@@ -101,11 +102,14 @@ class Pipeline:
     self._final_manager = Manager()
     self._final_table = self._final_manager.dict()
 
+    self._monitoring_table = Queue()
+    self._monitor_module = PipelineMonitor(self._monitoring_table)
+
     self._candidate_manager = CandidateManager()
     self._candidate_manager.start()
     self._candidate_queue = self._candidate_manager.CandidateQueue()
 
-    self._module_queue = ComputeQueue(config["modules"]["transform"], self._fil_table)
+    self._module_queue = ComputeQueue(config["modules"]["transform"], self._fil_table, self._monitoring_table)
 
     logger.debug("Created queue with %d modules",
                   (len(self._module_queue)))
@@ -314,9 +318,12 @@ class Pipeline:
                           self._archive_module,
                           self._tarball_module))
 
-                        
+    monitor = Process(target=self._monitor_module.monitor, name="Monitor")
+
+
     finiliser.start()
     watcher.start()
+    monitor.start()
 
     await asyncio.gather(listener, computer)
 
@@ -324,6 +331,7 @@ class Pipeline:
     loop.stop()
     finiliser.join()
     watcher.join()
+    monitor.join()
 
   def stop(self, loop: asyncio.AbstractEventLoop) -> None:
     """

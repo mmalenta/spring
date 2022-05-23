@@ -1,4 +1,5 @@
 import logging
+from re import M
 import pika
 
 from json import dumps
@@ -88,6 +89,8 @@ class FrbidModule(TransformModule):
 
     self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
     self._channel = self._connection.channel()
+
+    self._monitoring_table = config["monitoring"]
 
     logger.info("FRBID module initialised")
 

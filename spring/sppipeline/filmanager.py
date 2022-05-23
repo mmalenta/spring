@@ -93,8 +93,8 @@ class FilDataTable:
 
     self._lock = Lock()
 
-    self._candidate_gauge = Gauge("data_table_candidates", "Candidates in the data table")
-    self._candidate_size_gauge = Gauge("data_table_size", "Candidate data table size in B")
+    #self._candidate_gauge = Gauge("data_table_candidates", "Candidates in the data table")
+    #self._candidate_size_gauge = Gauge("data_table_size", "Candidate data table size in B")
 
     logger.info("Filterbank data table initialised")
 
@@ -167,12 +167,12 @@ class FilDataTable:
             # Take just the filterbank file into account - this is the main
             # contribution to the data table size
             self._current_size += fil_data.size * 4
-            self._candidate_size_gauge.inc(fil_data.size * 4)
+            #self._candidate_size_gauge.inc(fil_data.size * 4)
             logger.info("Current data table size: %dB/%.2fMiB",
                           self._current_size,
                           self._current_size / 1024.0 / 1024.0)
 
-            self._candidate_gauge.inc()
+            #self._candidate_gauge.inc()
 
             return (self._data[full_name]["data"], "orig")
 
@@ -250,7 +250,7 @@ class FilDataTable:
           logger.info("Removing filterbank %s from the data table", 
                       full_name)
           self._current_size -= self._data[full_name]["data"].size * 4
-          self._candidate_size_gauge.dec(self._data[full_name]["data"].size * 4)
+          #self._candidate_size_gauge.dec(self._data[full_name]["data"].size * 4)
           # Copy the data before we actually remove it
           fil_data = {"header": self._data[full_name]["header"],
                       "data": self._data[full_name]["data"]}
@@ -262,7 +262,7 @@ class FilDataTable:
                         self._current_size,
                         self._current_size / 1024.0 / 1024.0)
 
-          self._candidate_gauge.dec(1)
+          #self._candidate_gauge.dec(1)
 
           return fil_data
 
