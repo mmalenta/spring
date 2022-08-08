@@ -206,7 +206,7 @@ class FrbidModule(TransformModule):
 
     try:
       self._channel.basic_publish(exchange="post_processing",
-                                  routing_key="archiving_" + gethostname(),
+                                  routing_key="archiving_" + gethostname() + "_offline",
                                   body=dumps(message))
 
     except:
@@ -214,7 +214,7 @@ class FrbidModule(TransformModule):
       self._connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
       self._channel = self._connection.channel()
       self._channel.basic_publish(exchange="post_processing",
-                                  routing_key="archiving_" + gethostname(),
+                                  routing_key="archiving_" + gethostname() + "_offline",
                                   body=dumps(message))
 
     logger.debug("Prediction took %.4fs", pred_end - pred_start)

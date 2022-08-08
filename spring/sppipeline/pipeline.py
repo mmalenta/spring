@@ -275,9 +275,9 @@ class Pipeline:
     channel = connection.channel()
     channel.basic_qos(prefetch_count=5)
     hostname = gethostname()
-    channel.queue_declare("archiving_" + hostname, durable=True)
-    channel.queue_bind("archiving_" + hostname, "post_processing")
-    channel.basic_consume(queue="archiving_" + hostname, auto_ack=False,
+    channel.queue_declare("archiving_" + hostname + "_offline", durable=True, auto_delete=True)
+    channel.queue_bind("archiving_" + hostname + "_offline", "post_processing")
+    channel.basic_consume(queue="archiving_" + hostname + "_offline", auto_ack=False,
                           on_message_callback=ack)
     channel.start_consuming()
 
