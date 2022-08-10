@@ -3,6 +3,7 @@ import logging
 
 from glob import glob
 from json import load
+from json.decoder import JSONDecodeError
 from os import path, scandir, stat
 from pandas import read_csv
 from pandas.errors import EmptyDataError, ParserError
@@ -426,7 +427,8 @@ class WatchModule(InputModule):
           try:
 
             obs_logs, beam_logs = retry_call(self._read_logs, fargs=[idir],
-                                  exceptions=FileNotFoundError,
+                                  exceptions=(FileNotFoundError,
+                                              JSONDecodeError),
                                   tries=12,
                                   delay=5,
                                   logger=logger)
@@ -449,6 +451,10 @@ class WatchModule(InputModule):
             # after one minute, it is highly unlikely it will appear at
             # all
             logger.error("Did not find a run_summary.json file in %s",
+                          idir)
+
+          except JSONDecodeError:
+            logger.error("Empty run_summary.json file in %s",
                           idir)
 
       current_directories = tmp_current_directories
